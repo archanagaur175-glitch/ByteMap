@@ -1,0 +1,10 @@
+[package]
+name = "bytemap-scan"
+description = "ByteMap scanner tiers: MFT fast path, parallel walker, network/removable"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]

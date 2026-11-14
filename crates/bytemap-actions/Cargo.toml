@@ -1,0 +1,10 @@
+[package]
+name = "bytemap-actions"
+description = "ByteMap cleanup actions: dry run, recycle, archive, undo journal"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
