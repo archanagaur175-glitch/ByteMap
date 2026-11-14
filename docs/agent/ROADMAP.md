@@ -1,14 +1,14 @@
 # Roadmap (checkbox = not done; every task: ID, goal, files, verification)
 
 ## Phase 0 — Foundations (APPROVED 2026-11-14, order amended: T5 before T4)
-- [ ] P0.T1a | Memory files pt.1 | AGENTS.md, docs/agent/PROJECT_BRIEF.md, docs/agent/DECISIONS.md, docs/agent/ROADMAP.md | files exist, AGENTS.md <=60 lines
-- [ ] P0.T1b | Memory files pt.2 | docs/agent/STATUS.md, CONTEXT_RESUME.md, SESSION_LOG.md, OPEN_QUESTIONS.md | files exist, CONTEXT_RESUME.md <=40 lines
-- [ ] P0.T2 | Git init (main) + remote origin + workspace scaffold: .gitignore, LICENSE-MIT, LICENSE-APACHE, rust-toolchain.toml (1.97.1, clippy+rustfmt), root Cargo.toml (license "MIT OR Apache-2.0"), crates/bytemap-core stub | 5 files + licenses | cargo check -p bytemap-core
-- [ ] P0.T3 | bytemap-scan + bytemap-actions stubs (no deps) | 4 files | cargo check --workspace; commit Cargo.lock
-- [ ] P0.T5 | Frontend scaffold (React 19, TS, Vite) | package.json, vite.config.ts, tsconfig.json, index.html, src/main.tsx | npm install && npm run build -> dist/ ; commit package-lock.json
-- [ ] P0.T4 | src-tauri shell (tauri, tauri-build, serde, serde_json; frontendDist ../dist; io.github.archanagaur175-glitch.bytemap) + placeholder icon via npx tauri icon | src-tauri/Cargo.toml, build.rs, tauri.conf.json, capabilities/default.json, src/main.rs | cargo check -p bytemap
-- [ ] P0.T6 | scripts/check.ps1: fmt --check, cargo check, clippy -D warnings, cargo test, npm run build, vitest --passWithNoTests; stop on first failure | scripts/check.ps1 | powershell -File scripts/check.ps1 exits 0
-- [ ] P0.GATE | Full check pass; update memory files; commit; push; <=10-line summary; ask APPROVED: Phase 1 | docs/agent/* | scripts/check.ps1 exit 0
+- [x] P0.T1a | Memory files pt.1 | AGENTS.md, docs/agent/PROJECT_BRIEF.md, docs/agent/DECISIONS.md, docs/agent/ROADMAP.md | files exist, AGENTS.md <=60 lines
+- [x] P0.T1b | Memory files pt.2 | docs/agent/STATUS.md, CONTEXT_RESUME.md, SESSION_LOG.md, OPEN_QUESTIONS.md | files exist, CONTEXT_RESUME.md <=40 lines
+- [x] P0.T2 | Git init (main) + remote origin + workspace scaffold: .gitignore, LICENSE-MIT, LICENSE-APACHE, rust-toolchain.toml (1.97.1, clippy+rustfmt), root Cargo.toml (license "MIT OR Apache-2.0"), crates/bytemap-core stub | 5 files + licenses | cargo check -p bytemap-core
+- [x] P0.T3 | bytemap-scan + bytemap-actions stubs (no deps) | 4 files | cargo check --workspace; commit Cargo.lock
+- [x] P0.T5 | Frontend scaffold (React 19, TS, Vite) | package.json, vite.config.ts, tsconfig.json, index.html, src/main.tsx | npm install && npm run build -> dist/ ; commit package-lock.json
+- [x] P0.T4 | src-tauri shell (tauri, tauri-build, serde, serde_json; frontendDist ../dist; io.github.archanagaur175-glitch.bytemap) + placeholder icon via npx tauri icon | src-tauri/Cargo.toml, build.rs, tauri.conf.json, capabilities/default.json, src/main.rs | cargo check -p bytemap
+- [x] P0.T6 | scripts/check.ps1: fmt --check, cargo check, clippy -D warnings, cargo test, npm run build, vitest --passWithNoTests; stop on first failure | scripts/check.ps1 | powershell -File scripts/check.ps1 exits 0
+- [x] P0.GATE | Full check pass; update memory files; commit; push; <=10-line summary; ask APPROVED: Phase 1 | docs/agent/* | scripts/check.ps1 exit 0
 
 ## Phase 1 — Core model and walker scanner (amendments recorded in DECISIONS.md; DO NOT START until approved)
 - [ ] P1.T1 | Arena tree: Vec<Node>, u32 indices, shared string arena, <=80 B/entry target | bytemap-core/src/tree.rs, lib.rs + 1 test | cargo test -p bytemap-core

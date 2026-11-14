@@ -26,3 +26,6 @@
 - 2026-11-14 | P1.T5: build 100k fixture once into %TEMP%\bytemap-bench-100k and reuse; report cold + warm runs and Defender real-time status; never change Defender settings — ask owner | Owner Phase 1 amendment | —.
 - 2026-11-14 | P1.T7 MFT spike (PENDING OWNER APPROVAL, do not run): bytemap-scan/examples/mft_probe.rs with ntfs-reader, read-only, prints entry count + elapsed; needs elevation; owner runs it personally | Owner Phase 1 amendment | —.
 - 2026-11-14 | Icon placeholder: src-tauri/icons/* generated from a placeholder PNG, not a final brand asset | Implementation note per amendment B | Rejected: designer assets (none exist yet).
+- 2026-11-14 | npm dependency majors bumped at install time: vite ^8 (8.3.8), @vitejs/plugin-react ^6 (6.3.0), vitest ^5 (5.1.0); TypeScript kept on ^5 (7.0.2 exists, deliberately not taken) | Original ranges (vite ^7, plugin-react ^5, vitest ^4) failed: npm error "Cannot read properties of null (reading 'edgesOut')"; latest majors resolved cleanly with 0 vulnerabilities | Rejected: TypeScript 7 (too new), older majors (broken).
+- 2026-11-14 | Workspace members list: src-tauri added to members only in P0.T4 (literal member paths resolve eagerly and break cargo while the folder is absent) | cargo check failed with os error 3 before the fix | Rejected: listing src-tauri from the start.
+

@@ -5,11 +5,16 @@ Project: ByteMap — native Windows 11 disk-space analyzer. Tauri 2 + Rust works
 Licence: MIT OR Apache-2.0 (dual). Repo: C:\Users\archa\Documents\ByteMap.
 Remote: origin https://github.com/archanagaur175-glitch/ByteMap (branch main, push authorized after each task).
 
-Current state: Phase 0 approved; memory files staged in C:\Users\archa\.opencode\plan\
-(AGENTS.md, PROJECT_BRIEF.md, DECISIONS.md, ROADMAP.md, STATUS.md, CONTEXT_RESUME.md,
-SESSION_LOG.md, OPEN_QUESTIONS.md, phase0-execution.md) because repo writes were blocked in
-plan mode. First task after switch: copy them into the repo verbatim, then follow
-phase0-execution.md task order: T1a, T1b, T2, T3, T5, T4, T6, GATE.
+Current state: PHASE 0 COMPLETE, gate green (scripts/check.ps1 exit 0, 2026-11-14). All scaffold
+committed and pushed. Phase 1 NOT started; awaiting owner "APPROVED: Phase 1". First Phase 1 task
+will be P1.T1 (arena tree in bytemap-core). Phase 1 amendments are recorded in DECISIONS.md and ROADMAP.md.
+
+Environment facts: rustc/cargo 1.97.1 pinned via rust-toolchain.toml (clippy + rustfmt components);
+node 22.22.3 / npm 10.9.8; Tauri CLI comes from npm @tauri-apps/cli (no global install);
+npm stack: vite 8.x, @vitejs/plugin-react 6.x, vitest 5.x, TS ^5 (7.x exists, deliberately avoided);
+Tauri crate 2.12.5; src-tauri bundle id io.github.archanagaur175-glitch.bytemap;
+frontendDist "../dist" (dist/ is gitignored but must exist before tauri build); placeholder icon
+generated from app-icon/icon-source.png (not a brand asset).
 
 Non-negotiables:
 - Read AGENTS.md -> docs/agent/CONTEXT_RESUME.md -> docs/agent/STATUS.md every session.
@@ -25,6 +30,6 @@ Non-negotiables:
 - Deps approved for Phase 0 only: react, react-dom, vite, typescript, @vitejs/plugin-react,
   @types/react, @types/react-dom, @tauri-apps/api, @tauri-apps/cli (dev), vitest (dev);
   Rust: tauri, tauri-build, serde, serde_json (src-tauri only). zustand waits for Phase 2.
-- Toolchain pinned 1.97.1 (rust-toolchain.toml, clippy + rustfmt). Check: scripts/check.ps1.
+- Check: scripts/check.ps1 (fmt, check, clippy -D warnings, test, npm build, vitest).
 - Open item: P6.T0 signing decision (owner undecided). P1.T7 MFT spike awaits owner approval.
 - Windows 11 is the target; Win10 = best-effort flat fallback, untested.
