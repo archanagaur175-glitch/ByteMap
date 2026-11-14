@@ -1,0 +1,28 @@
+# Decision Log (append-only — newest at the bottom)
+
+- 2026-11-14 | Stack: Tauri 2 shell, Rust workspace (bytemap-core/-scan/-actions/src-tauri), React 19 + Vite + Zustand | Owner-approved brief | Rejected: Electron, .NET, flat-grid UI.
+- 2026-11-14 | Memory model: flat arena Vec<Node>, u32 indices, shared string arena, <=80 B/entry target | Brief | Rejected: per-node object graph (cache/perf).
+- 2026-11-14 | IPC: UI never receives the whole tree; packed binary views via tauri::ipc::Response; progress via Channel <=20 msg/s | Brief | Rejected: full-tree JSON (freeze, memory).
+- 2026-11-14 | Safety: frontend sends node IDs only; Rust resolves paths; Recycle Bin default; stale-scan guard; undo journal | Brief | Rejected: frontend-sent path strings (injection risk).
+- 2026-11-14 | Scanner tiers: A MFT (elevated helper + named pipe, Phase 6), B jwalk+rayon, C network/removable | Brief | Rejected: admin main app.
+- 2026-11-14 | Renderer: Canvas 2D behind a Renderer interface; WebGL2 only if profiling proves need | Brief | Rejected: WebGL-first.
+- 2026-11-14 | Licence: free, open source, dual "MIT OR Apache-2.0"; LICENSE-MIT + LICENSE-APACHE at root, copyright "ByteMap contributors"; license = "MIT OR Apache-2.0" in every Cargo.toml and "license" in package.json | Owner answer 1 | Rejected: proprietary, single licence.
+- 2026-11-14 | Distribution: NSIS installer + portable zip, decided in Phase 9 | Owner answer 2 | Nothing to do now.
+- 2026-11-14 | Code signing: undecided; added ROADMAP task P6.T0 "decide signing before building the elevated helper" | Owner answer 3 | Deferred.
+- 2026-11-14 | Phase 0 dependencies approved: npm react, react-dom, vite, typescript, @vitejs/plugin-react, @types/react, @types/react-dom, @tauri-apps/api, @tauri-apps/cli (dev), vitest (dev); Rust tauri, tauri-build, serde, serde_json (src-tauri only) | Owner answer 4 | zustand NOT approved until Phase 2; nothing else.
+- 2026-11-14 | Phase 1 benchmark volume: synthetic 100k-file tree under %TEMP% | Owner answer 5 | Rejected: real user folders.
+- 2026-11-14 | Git: branch main; commit after each completed task, message "P<phase>.T<n>: <goal>"; commit docs/agent/ too | Owner answer 6 | —.
+- 2026-11-14 | Remote/push: origin https://github.com/archanagaur175-glitch/ByteMap, push authorized and performed after tasks | Owner answer 6 + follow-up ("commit + push to GitHub"), overrides the earlier "never push" line | —.
+- 2026-11-14 | OS target: Windows 11; Windows 10 best-effort flat fallback (no Mica), no testing | Owner answer 7 | Rejected: full Win10 support.
+- 2026-11-14 | Identity: product name ByteMap; bundle identifier io.github.archanagaur175-glitch.bytemap | Owner answer 8 + handle reply | —.
+- 2026-11-14 | Phase 0 task order: P0.T5 (frontend, dist/) BEFORE P0.T4 (src-tauri); frontendDist "../dist" | Owner amendment A | Rejected: Tauri-first order (build fails without dist/).
+- 2026-11-14 | Icon: 1024x1024 placeholder PNG via PowerShell System.Drawing, then `npx tauri icon`; placeholder icon is temporary, log noted here | Owner amendment B | Rejected: shipping no icon (tauri-build needs icon.ico).
+- 2026-11-14 | check.ps1 order with stop-on-first-failure: cargo fmt --all -- --check; cargo check --workspace; cargo clippy --workspace --all-targets -- -D warnings; cargo test --workspace; npm run build; npx vitest run --passWithNoTests | Owner amendment C | —.
+- 2026-11-14 | Toolchain pinned by rust-toolchain.toml to installed stable 1.97.1 with components clippy + rustfmt; Cargo.lock and package-lock.json committed | Owner amendment D | Rejected: floating toolchain.
+- 2026-11-14 | P1.T3 reparse/OneDrive: std::os::windows::fs::MetadataExt::file_attributes; FILE_ATTRIBUTE_REPARSE_POINT=0x400, RECALL_ON_DATA_ACCESS=0x400000, RECALL_ON_OPEN=0x40000; windows-sys only where std cannot (e.g. file IDs) | Owner Phase 1 amendment | Rejected: per-file CreateFile probes.
+- 2026-11-14 | Size on disk: logical size rounded up to volume cluster size (cluster size queried once per volume); GetCompressedFileSizeW only for compressed/sparse attribute files | Owner Phase 1 amendment | Rejected: GetCompressedFileSizeW per file.
+- 2026-11-14 | Hardlink dedup behind an option; benchmark with and without; both numbers reported to owner; owner picks default | Owner Phase 1 amendment | Deferred: hardcoded default.
+- 2026-11-14 | P1.T4 ACL-denied fixture: if icacls setup fails, mark test #[ignore] with stated reason; never skip silently | Owner Phase 1 amendment | —.
+- 2026-11-14 | P1.T5: build 100k fixture once into %TEMP%\bytemap-bench-100k and reuse; report cold + warm runs and Defender real-time status; never change Defender settings — ask owner | Owner Phase 1 amendment | —.
+- 2026-11-14 | P1.T7 MFT spike (PENDING OWNER APPROVAL, do not run): bytemap-scan/examples/mft_probe.rs with ntfs-reader, read-only, prints entry count + elapsed; needs elevation; owner runs it personally | Owner Phase 1 amendment | —.
+- 2026-11-14 | Icon placeholder: src-tauri/icons/* generated from a placeholder PNG, not a final brand asset | Implementation note per amendment B | Rejected: designer assets (none exist yet).
