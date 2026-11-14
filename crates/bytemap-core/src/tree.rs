@@ -139,6 +139,10 @@ impl Tree {
         &self.nodes[id as usize]
     }
 
+    pub(crate) fn node_mut(&mut self, id: NodeId) -> &mut Node {
+        &mut self.nodes[id as usize]
+    }
+
     pub fn name(&self, id: NodeId) -> &str {
         let n = &self.nodes[id as usize];
         self.strings.get(n.name_off, n.name_len)
