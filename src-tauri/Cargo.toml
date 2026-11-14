@@ -1,0 +1,20 @@
+[package]
+name = "bytemap"
+description = "ByteMap — Windows disk-space analyzer (Tauri shell, IPC commands)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+[features]
+# This feature is used by tauri's build for the custom-protocol production path.
+custom-protocol = ["tauri/custom-protocol"]
