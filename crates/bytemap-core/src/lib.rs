@@ -1,12 +1,8 @@
 //! bytemap-core: arena tree, roll-ups, categorizer, and layout for ByteMap.
 
-/// Placeholder version marker; replaced by real model code in Phase 1.
-pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+pub mod tree;
 
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn version_is_exposed() {
-        assert!(!super::VERSION.is_empty());
-    }
-}
+pub use tree::{Children, Node, NodeId, StringArena, Tree, NONE};
+
+/// Placeholder version marker.
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
