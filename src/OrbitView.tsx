@@ -4,9 +4,10 @@
 import { useEffect, useRef, useState } from "react";
 import { Canvas2DRenderer } from "./renderer";
 import { hitTest } from "./orbit";
-import type { OrbitGeometry } from "./orbit";
+import type { OrbitGeometry, OrbitArc } from "./orbit";
 import { useStore } from "./store";
 import { FLAG_DIR } from "./orbit";
+import { Inspector } from "./Inspector";
 
 export function OrbitView() {
   const orbit = useStore((s) => s.orbit);
@@ -124,29 +125,34 @@ export function OrbitView() {
     return hitTest(orbit, geom, x, y);
   };
 
+  const hoveredArc: OrbitArc | null = hoveredId === null ? null : (orbit.arcs.find((a) => a.id === hoveredId) ?? null);
+
   return (
-    <div className="orbit-wrap" ref={wrapRef}>
-      <canvas
-        ref={canvasRef}
-        className="orbit-canvas"
-        onMouseMove={(e) => {
-          const arc = pointArc(e);
-          setHoveredId(arc ? arc.id : null);
-          e.currentTarget.style.cursor = arc ? "pointer" : "default";
-        }}
-        onMouseLeave={() => {
-          setHoveredId(null);
-        }}
-        onClick={(e) => {
-          const arc = pointArc(e);
-          if (!arc) return;
-          if (arc.flags & FLAG_DIR) {
-            void openNode(arc.id);
-          } else {
-            select(arc.id);
-          }
-        }}
-      />
+    <div className="orbit-row">
+      <div className="orbit-wrap" ref={wrapRef}>
+        <canvas
+          ref={canvasRef}
+          className="orbit-canvas"
+          onMouseMove={(e) => {
+            const arc = pointArc(e);
+            setHoveredId(arc ? arc.id : null);
+            e.currentTarget.style.cursor = arc ? "pointer" : "default";
+          }}
+          onMouseLeave={() => {
+            setHoveredId(null);
+          }}
+          onClick={(e) => {
+            const arc = pointArc(e);
+            if (!arc) return;
+            if (arc.flags & FLAG_DIR) {
+              void openNode(arc.id);
+            } else {
+              select(arc.id);
+            }
+          }}
+        />
+      </div>
+      <Inspector arc={hoveredArc} />
     </div>
   );
 }

@@ -107,18 +107,86 @@ body {
   background: var(--panel);
 }
 
+.orbit-row {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  gap: 6px;
+}
+
 .orbit-wrap {
   flex: 1;
+  min-width: 0;
   min-height: 0;
   border: 1px solid #2a3350;
   border-radius: 12px;
   overflow: hidden;
+  background: var(--panel);
 }
 
 .orbit-canvas {
   width: 100%;
   height: 100%;
   display: block;
+}
+
+.inspector {
+  flex: none;
+  width: 230px;
+  border: 1px solid #2a3350;
+  border-radius: 12px;
+  background: var(--panel);
+  padding: 10px;
+  overflow: hidden;
+}
+
+.inspector-hint {
+  color: var(--muted);
+  text-align: center;
+  margin-top: 20px;
+}
+
+.inspector-name {
+  font-weight: 600;
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-bottom: 8px;
+}
+
+.inspector-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 3px 0;
+  color: var(--muted);
+}
+
+.inspector-row .mono,
+.mono {
+  color: var(--text);
+  font-family: "Cascadia Mono", Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+.inspector-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.badge {
+  padding: 2px 8px;
+  border-radius: 8px;
+  border: 1px solid #2a3350;
+  color: var(--text);
+  font-size: 11px;
+}
+
+.badge.warn {
+  border-color: #6b4a2a;
+  color: #ffc857;
 }
 
 .tree-row {
