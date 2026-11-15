@@ -1,6 +1,7 @@
 # Status
-Phase: 0 COMPLETE (gate green 2026-11-14, scripts/check.ps1 exit 0) | Task: none | Last completed: P0.GATE
-Next: await owner "APPROVED: Phase 1"; do not start without it. First Phase 1 task will be P1.T1 (arena tree).
-Blockers: none. Toolchain verified end to end (rust 1.97.1 pinned, clippy+rustfmt components installed, Tauri CLI via npm @tauri-apps/cli).
-Note: npm dependency majors were bumped during P0.T5 (vite ^8, @vitejs/plugin-react ^6, vitest ^5) after an unresolvable-tree error; see DECISIONS.md.
-Resume: read AGENTS.md -> docs/agent/CONTEXT_RESUME.md -> docs/agent/STATUS.md; do the "Next" action.
+Phase: 1 COMPLETE (gate green 2026-11-15, scripts/check.ps1 exit 0) | Task: none | Last completed: P1.GATE
+Next: (1) owner chooses hardlink-dedup default (with dedup: 38.0k entries/s, without: 82.0k — record choice in DECISIONS.md);
+(2) owner approves P1.T7 MFT spike (they run it personally, needs elevation); (3) await "APPROVED: Phase 2".
+Blockers: none technical. P1.T7 spike not built (pending approval).
+Benchmark: 101,112-entry fixture — cold 71.9k entries/s, warm 73.3k, best 82.0k, dedup 38.0k (target 33.3k/s met both modes). Defender real-time ACTIVE.
+Resume: read AGENTS.md -> docs/agent/CONTEXT_RESUME.md -> docs/agent/STATUS.md; do the "Next" actions.

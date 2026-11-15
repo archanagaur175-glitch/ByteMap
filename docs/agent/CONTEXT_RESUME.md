@@ -5,16 +5,22 @@ Project: ByteMap — native Windows 11 disk-space analyzer. Tauri 2 + Rust works
 Licence: MIT OR Apache-2.0 (dual). Repo: C:\Users\archa\Documents\ByteMap.
 Remote: origin https://github.com/archanagaur175-glitch/ByteMap (branch main, push authorized after each task).
 
-Current state: PHASE 0 COMPLETE, gate green (scripts/check.ps1 exit 0, 2026-11-14). All scaffold
-committed and pushed. Phase 1 NOT started; awaiting owner "APPROVED: Phase 1". First Phase 1 task
-will be P1.T1 (arena tree in bytemap-core). Phase 1 amendments are recorded in DECISIONS.md and ROADMAP.md.
+Current state: PHASES 0+1 COMPLETE, gates green (2026-11-15). Arena tree + roll-ups in bytemap-core;
+walker scanner (jwalk 0.9) with all scanner rules verified by fixture tests; bench-walk binary with
+reusable %TEMP%\bytemap-bench-100k fixture (101,112 entries: cold 71.9k/s, warm 73.3k/s, best 82.0k/s,
+with hardlink dedup 38.0k/s; target 33.3k/s met; Defender real-time was ON). Phase 2 NOT started;
+awaiting owner "APPROVED: Phase 2". Two owner items pending: dedup default choice, P1.T7 MFT spike approval.
 
 Environment facts: rustc/cargo 1.97.1 pinned via rust-toolchain.toml (clippy + rustfmt components);
 node 22.22.3 / npm 10.9.8; Tauri CLI comes from npm @tauri-apps/cli (no global install);
 npm stack: vite 8.x, @vitejs/plugin-react 6.x, vitest 5.x, TS ^5 (7.x exists, deliberately avoided);
 Tauri crate 2.12.5; src-tauri bundle id io.github.archanagaur175-glitch.bytemap;
 frontendDist "../dist" (dist/ is gitignored but must exist before tauri build); placeholder icon
-generated from app-icon/icon-source.png (not a brand asset).
+generated from app-icon/icon-source.png (not a brand asset). Scan deps: jwalk 0.9.0, windows-sys 0.61.2,
+thiserror 2.0.21. Gotchas learned: [target.'cfg(windows)'.dependencies] (not [target.windows]);
+jwalk: skip_hidden(false) required, failed child read_dir attaches to read_children.error (pub), parents
+before children guaranteed (strict DFS), metadata() = symlink_metadata (no follow); denied-dir probe:
+icacls /deny user:(OI)(CI)R + self-verify read_dir fails.
 
 Non-negotiables:
 - Read AGENTS.md -> docs/agent/CONTEXT_RESUME.md -> docs/agent/STATUS.md every session.

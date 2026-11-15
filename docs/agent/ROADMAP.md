@@ -11,15 +11,17 @@
 - [x] P0.GATE | Full check pass; update memory files; commit; push; <=10-line summary; ask APPROVED: Phase 1 | docs/agent/* | scripts/check.ps1 exit 0
 
 ## Phase 1 — Core model and walker scanner (amendments recorded in DECISIONS.md; DO NOT START until approved)
-- [ ] P1.T1 | Arena tree: Vec<Node>, u32 indices, shared string arena, <=80 B/entry target | bytemap-core/src/tree.rs, lib.rs + 1 test | cargo test -p bytemap-core
-- [ ] P1.T2 | Roll-ups: aggregate logical + on-disk sizes, sort children by size | bytemap-core/src/rollup.rs + 1 test | cargo test -p bytemap-core
-- [ ] P1.T3 | Walker scanner (jwalk + rayon): reparse via file_attributes (0x400 / 0x400000 / 0x40000), windows-sys only for file IDs, long paths, denied-count, no OneDrive hydration; size on disk = logical rounded to cluster size, GetCompressedFileSizeW only for compressed/sparse | bytemap-scan/src/walker.rs, entry.rs, error.rs, lib.rs | cargo test -p bytemap-scan
-- [ ] P1.T3b | Hardlink dedup behind an option; benchmark with and without; report both to owner; record chosen default | bytemap-scan/src/hardlink.rs + bench wiring | cargo run --release --bin bench-walk (both modes)
-- [ ] P1.T4 | Fixture tests: junction, symlink, hardlink, ACL-denied (#[ignore] with reason if icacls fails), deep paths | bytemap-scan/tests/fixtures.rs, walker_rules.rs | cargo test -p bytemap-scan --test walker_rules
-- [ ] P1.T5 | Benchmark binary; 100k fixture built once into %TEMP%\bytemap-bench-100k, reused; report cold + warm + Defender status | bytemap-scan/src/bin/bench-walk.rs | cargo run --release -p bytemap-scan --bin bench-walk
-- [ ] P1.T6 | Clippy-clean; record 100k benchmark in STATUS/SESSION_LOG | docs/agent/* | scripts/check.ps1
+- [x] P1.T1 | Arena tree: Vec<Node>, u32 indices, shared string arena, <=80 B/entry target | bytemap-core/src/tree.rs, lib.rs + 1 test | cargo test -p bytemap-core
+- [x] P1.T2 | Roll-ups: aggregate logical + on-disk sizes, sort children by size | bytemap-core/src/rollup.rs + 1 test | cargo test -p bytemap-core
+- [x] P1.T3 | Walker scanner (jwalk + rayon): reparse via file_attributes (0x400 / 0x400000 / 0x40000), windows-sys only for file IDs, long paths, denied-count, no OneDrive hydration; size on disk = logical rounded to cluster size, GetCompressedFileSizeW only for compressed/sparse | bytemap-scan/src/walker.rs, entry.rs, error.rs, lib.rs | cargo test -p bytemap-scan
+- [x] P1.T3b | Hardlink dedup behind an option; benchmark with and without; report both to owner; record chosen default | bytemap-scan/src/hardlink.rs + bench wiring | cargo run --release --bin bench-walk (both modes)
+- [x] P1.T4 | Fixture tests: junction, symlink, hardlink, ACL-denied (#[ignore] with reason if icacls fails), deep paths | bytemap-scan/tests/fixtures.rs, walker_rules.rs | cargo test -p bytemap-scan --test walker_rules
+- [x] P1.T5 | Benchmark binary; 100k fixture built once into %TEMP%\bytemap-bench-100k, reused; report cold + warm + Defender status | bytemap-scan/src/bin/bench-walk.rs | cargo run --release -p bytemap-scan --bin bench-walk
+- [x] P1.T6 | Clippy-clean; record 100k benchmark in STATUS/SESSION_LOG | docs/agent/* | scripts/check.ps1
 - [ ] P1.T7 | (SPIKE, PENDING OWNER APPROVAL — DO NOT RUN) mft_probe.rs example with ntfs-reader, read-only, entry count + elapsed; owner runs it (elevation) | bytemap-scan/examples/mft_probe.rs | owner-run manually
-- [ ] P1.GATE | Tests pass; junction/hardlink/denied covered; 100k benchmark recorded | — | scripts/check.ps1
+- [x] P1.GATE | Tests pass; junction/hardlink/denied covered; 100k benchmark recorded | — | scripts/check.ps1
+
+Result: 100k fixture (101,112 entries incl. marker): cold 1.407 s / 71.9k entries/s, warm 1.379 s / 73.3k entries/s (process 2 cold 1.233 s / 82.0k); with hardlink dedup 2.659 s / 38.0k entries/s. Defender real-time protection ACTIVE during runs. Walker target (< 30 s per 1M entries = 33.3k/s) met in both modes. Dedup default: AWAITING OWNER CHOICE.
 
 ## Phase 2 — IPC and minimal UI (detail pending approval)
 - [ ] P2.T1 scan start/cancel commands | [ ] P2.T2 batched progress via Channel <=20/s | [ ] P2.T3 binary view API (tauri::ipc::Response) | [ ] P2.T4 virtualized tree list | [ ] P2.T5 real-folder no-freeze gate (zustand approved here)
