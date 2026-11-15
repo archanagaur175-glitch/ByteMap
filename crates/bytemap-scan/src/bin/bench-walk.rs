@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 use bytemap_core::Tree;
-use bytemap_scan::{scan_folder, ScanOptions, ScanStats};
+use bytemap_scan::{scan_folder, ScanOptions};
 
 fn fixture_root() -> PathBuf {
     std::env::temp_dir().join("bytemap-bench-100k")
