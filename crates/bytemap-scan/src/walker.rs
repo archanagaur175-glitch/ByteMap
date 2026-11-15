@@ -51,7 +51,11 @@ pub struct ScanStats {
 /// - access-denied entries are counted in `ScanStats::denied`, not fatal;
 /// - long paths work (the root is canonicalized to a `\\?\`-style path);
 /// - sizes: logical + size on disk.
-pub fn scan_folder(root: &Path, tree: &mut Tree, options: &ScanOptions) -> Result<ScanStats, ScanError> {
+pub fn scan_folder(
+    root: &Path,
+    tree: &mut Tree,
+    options: &ScanOptions,
+) -> Result<ScanStats, ScanError> {
     let _ = options; // consumed fully in P1.T3b (hardlink dedup)
     let start = Instant::now();
     // canonicalize() returns a \\?\-style path on Windows: long paths work.
@@ -61,8 +65,8 @@ pub fn scan_folder(root: &Path, tree: &mut Tree, options: &ScanOptions) -> Resul
     let denied_cb = Arc::clone(&denied);
     // Hardlink dedup state, shared across rayon threads (only touched when
     // the option is on). Key: (volume serial, file index).
-    let seen_files: Arc<Mutex<HashMap<(u64, u64), ()>>> =
-        Arc::new(Mutex::new(HashMap::new()));    let dedup = options.hardlink_dedup;
+    let seen_files: Arc<Mutex<HashMap<(u64, u64), ()>>> = Arc::new(Mutex::new(HashMap::new()));
+    let dedup = options.hardlink_dedup;
     let seen_files_cb = Arc::clone(&seen_files);
 
     let walk = WalkDirGeneric::<((), EntryInfo)>::new(&canonical)
@@ -92,7 +96,11 @@ pub fn scan_folder(root: &Path, tree: &mut Tree, options: &ScanOptions) -> Resul
                 }
                 let path = entry.path();
                 let logical = if is_dir { 0 } else { meta.len() };
-                let on_disk = if is_dir { 0 } else { m::size_on_disk(&path, logical, attrs, cluster) };
+                let on_disk = if is_dir {
+                    0
+                } else {
+                    m::size_on_disk(&path, logical, attrs, cluster)
+                };
                 let mtime = meta.modified().map(m::filetime).unwrap_or(0);
                 if !is_dir && dedup && node_flags & flags::REPARSE == 0 {
                     // Dedup costs one handle-open per file (P1.T3b).
@@ -163,11 +171,25 @@ pub fn scan_folder(root: &Path, tree: &mut Tree, options: &ScanOptions) -> Resul
             .ok_or_else(|| ScanError::MissingParent(entry.path()))?;
 
         if info.is_dir {
-            let id = tree.insert_child(parent, &name, info.node_flags | flags::DIR, info.mtime, 0, 0);
+            let id = tree.insert_child(
+                parent,
+                &name,
+                info.node_flags | flags::DIR,
+                info.mtime,
+                0,
+                0,
+            );
             dir_map.insert(entry.path().to_string_lossy().into_owned(), id);
             stats.dirs += 1;
         } else {
-            tree.insert_child(parent, &name, info.node_flags, info.mtime, info.logical, info.on_disk);
+            tree.insert_child(
+                parent,
+                &name,
+                info.node_flags,
+                info.mtime,
+                info.logical,
+                info.on_disk,
+            );
             stats.files += 1;
         }
     }

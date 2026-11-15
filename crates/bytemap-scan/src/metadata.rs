@@ -14,8 +14,7 @@ use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use windows_sys::Win32::Storage::FileSystem::{
-    GetCompressedFileSizeW, GetDiskFreeSpaceW, FILE_SHARE_DELETE, FILE_SHARE_READ,
-    FILE_SHARE_WRITE,
+    GetCompressedFileSizeW, GetDiskFreeSpaceW, FILE_SHARE_DELETE, FILE_SHARE_READ, FILE_SHARE_WRITE,
 };
 
 pub const FILE_ATTRIBUTE_READONLY: u32 = 0x1;
@@ -28,7 +27,10 @@ pub const FILE_ATTRIBUTE_RECALL_ON_OPEN: u32 = 0x4_0000;
 pub const FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS: u32 = 0x400_0000;
 
 fn wide(path: &Path) -> Vec<u16> {
-    path.as_os_str().encode_wide().chain(std::iter::once(0)).collect()
+    path.as_os_str()
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect()
 }
 
 /// Cluster size in bytes for the volume containing `path`.
@@ -104,8 +106,8 @@ pub fn filetime(t: SystemTime) -> i64 {
 pub fn file_id(path: &Path, attrs: u32) -> Option<(u64, u64)> {
     use windows_sys::Win32::Foundation::{CloseHandle, INVALID_HANDLE_VALUE};
     use windows_sys::Win32::Storage::FileSystem::{
-        CreateFileW, GetFileInformationByHandle, FILE_FLAG_BACKUP_SEMANTICS,
-        FILE_READ_ATTRIBUTES, BY_HANDLE_FILE_INFORMATION,
+        CreateFileW, GetFileInformationByHandle, BY_HANDLE_FILE_INFORMATION,
+        FILE_FLAG_BACKUP_SEMANTICS, FILE_READ_ATTRIBUTES,
     };
 
     if attrs & FILE_ATTRIBUTE_REPARSE_POINT != 0
@@ -169,10 +171,16 @@ mod tests {
     fn classify_flags() {
         let (f, dir) = classify(FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT);
         assert!(dir);
-        assert_eq!(f & bytemap_core::tree::flags::REPARSE, bytemap_core::tree::flags::REPARSE);
+        assert_eq!(
+            f & bytemap_core::tree::flags::REPARSE,
+            bytemap_core::tree::flags::REPARSE
+        );
         let (f, dir) = classify(FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS);
         assert!(!dir);
-        assert_eq!(f & bytemap_core::tree::flags::PLACEHOLDER, bytemap_core::tree::flags::PLACEHOLDER);
+        assert_eq!(
+            f & bytemap_core::tree::flags::PLACEHOLDER,
+            bytemap_core::tree::flags::PLACEHOLDER
+        );
     }
 
     #[test]

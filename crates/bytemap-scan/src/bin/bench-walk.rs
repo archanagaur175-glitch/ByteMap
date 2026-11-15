@@ -41,14 +41,23 @@ fn build_if_missing(root: &Path) -> std::io::Result<()> {
             }
         }
     }
-    std::fs::write(&marker, b"100k files, 1000 leaf dirs, synthetic benchmark fixture")?;
+    std::fs::write(
+        &marker,
+        b"100k files, 1000 leaf dirs, synthetic benchmark fixture",
+    )?;
     println!("fixture built in {:?}", start.elapsed());
     Ok(())
 }
 
 fn run_once(root: &Path, label: &str, dedup: bool) -> Result<(), bytemap_scan::ScanError> {
     let mut tree = Tree::new();
-    let stats = scan_folder(root, &mut tree, &ScanOptions { hardlink_dedup: dedup })?;
+    let stats = scan_folder(
+        root,
+        &mut tree,
+        &ScanOptions {
+            hardlink_dedup: dedup,
+        },
+    )?;
     let entries = tree.len() as u64;
     let per_sec = if stats.elapsed_ms > 0 {
         entries * 1000 / stats.elapsed_ms as u64

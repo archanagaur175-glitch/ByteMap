@@ -23,12 +23,23 @@ fn junction_is_listed_never_followed_never_double_counted() {
     let fx = Fixture::empty("junction");
     fx.file("sub/video.mkv", 2048);
     fx.file("alpha.txt", 1234);
-    assert!(fx.junction("link_to_sub", "sub"), "mklink /J failed (junction creation should not need admin)");
+    assert!(
+        fx.junction("link_to_sub", "sub"),
+        "mklink /J failed (junction creation should not need admin)"
+    );
 
     let (tree, stats) = scan(&fx).expect("scan should not fail on junctions");
     let link = find_by_name(&tree, "link_to_sub").expect("junction must appear as a node");
-    assert_eq!(tree.node(link).flags() & flags::REPARSE, flags::REPARSE, "junction flagged REPARSE");
-    assert_eq!(tree.node(link).child_count(), 0, "junction children never enumerated");
+    assert_eq!(
+        tree.node(link).flags() & flags::REPARSE,
+        flags::REPARSE,
+        "junction flagged REPARSE"
+    );
+    assert_eq!(
+        tree.node(link).child_count(),
+        0,
+        "junction children never enumerated"
+    );
 
     // sub counted exactly once: root aggregate = video + alpha only.
     let root = tree.root().unwrap();
@@ -46,7 +57,11 @@ fn self_referential_junction_does_not_hang_or_explode() {
 
     let (tree, _stats) = scan(&fx).expect("loop junction must not break the scan");
     let root = tree.root().unwrap();
-    assert_eq!(tree.node(root).agg_logical(), 10, "loop target contents must not be counted");
+    assert_eq!(
+        tree.node(root).agg_logical(),
+        10,
+        "loop target contents must not be counted"
+    );
 }
 
 #[test]
@@ -55,12 +70,19 @@ fn hardlinks_counted_per_name_before_dedup() {
     // DUPLICATE_HARDLINK and not add its size; until then both count.
     let fx = Fixture::empty("hardlink");
     fx.file("hard.txt", 7);
-    assert!(fx.hardlink("hard.txt", "hard2.txt"), "CreateHardLinkW failed");
+    assert!(
+        fx.hardlink("hard.txt", "hard2.txt"),
+        "CreateHardLinkW failed"
+    );
 
     let (tree, stats) = scan(&fx).expect("scan");
     assert_eq!(stats.files, 2);
     let root = tree.root().unwrap();
-    assert_eq!(tree.node(root).agg_logical(), 14, "both names counted without dedup");
+    assert_eq!(
+        tree.node(root).agg_logical(),
+        14,
+        "both names counted without dedup"
+    );
     let h2 = find_by_name(&tree, "hard2.txt").expect("hardlink name present");
     assert_eq!(
         tree.node(h2).flags() & flags::DUPLICATE_HARDLINK,
@@ -73,14 +95,27 @@ fn hardlinks_counted_per_name_before_dedup() {
 fn hardlinks_dedup_counts_once_by_file_id() {
     let fx = Fixture::empty("hardlink-dedup");
     fx.file("hard.txt", 7);
-    assert!(fx.hardlink("hard.txt", "hard2.txt"), "CreateHardLinkW failed");
+    assert!(
+        fx.hardlink("hard.txt", "hard2.txt"),
+        "CreateHardLinkW failed"
+    );
 
     let mut tree = Tree::new();
-    let stats = scan_folder(fx.path(), &mut tree, &ScanOptions { hardlink_dedup: true })
-        .expect("scan with dedup");
+    let stats = scan_folder(
+        fx.path(),
+        &mut tree,
+        &ScanOptions {
+            hardlink_dedup: true,
+        },
+    )
+    .expect("scan with dedup");
     let root = tree.root().unwrap();
     // Size counted once despite two names.
-    assert_eq!(tree.node(root).agg_logical(), 7, "hardlink counted once with dedup");
+    assert_eq!(
+        tree.node(root).agg_logical(),
+        7,
+        "hardlink counted once with dedup"
+    );
     assert_eq!(stats.files, 2, "both names still listed as nodes");
     let dup = find_by_name(&tree, "hard2.txt").expect("second hardlink name present");
     assert_eq!(
@@ -88,7 +123,11 @@ fn hardlinks_dedup_counts_once_by_file_id() {
         flags::DUPLICATE_HARDLINK,
         "second name flagged DUPLICATE_HARDLINK"
     );
-    assert_eq!(tree.node(dup).agg_logical(), 0, "duplicate contributes no size");
+    assert_eq!(
+        tree.node(dup).agg_logical(),
+        0,
+        "duplicate contributes no size"
+    );
 }
 
 #[test]
@@ -121,7 +160,11 @@ fn denied_entries_counted_not_fatal() {
     // visible.txt must still be counted; secret contributes nothing known.
     assert_eq!(tree.node(root).agg_logical(), 55);
     if let Some(secret) = find_by_name(&tree, "secret") {
-        assert_eq!(tree.node(secret).child_count(), 0, "denied dir must have no children");
+        assert_eq!(
+            tree.node(secret).child_count(),
+            0,
+            "denied dir must have no children"
+        );
     }
 }
 
@@ -137,7 +180,14 @@ fn sizes_and_flags_on_plain_files() {
     // Size on disk = logical rounded up to cluster size; 4096 + 4096 = 8192
     // on an NTFS volume with 4096-byte clusters (test box assumption).
     let disk = tree.node(root).agg_on_disk();
-    assert!(disk >= 8192, "size on disk must round up to cluster granularity (got {disk})");
+    assert!(
+        disk >= 8192,
+        "size on disk must round up to cluster granularity (got {disk})"
+    );
     let b = find_by_name(&tree, "b.bin").unwrap();
-    assert_eq!(tree.node(b).flags() & flags::PLACEHOLDER, 0, "local files are not placeholders");
+    assert_eq!(
+        tree.node(b).flags() & flags::PLACEHOLDER,
+        0,
+        "local files are not placeholders"
+    );
 }

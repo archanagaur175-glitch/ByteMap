@@ -51,11 +51,20 @@ impl Fixture {
         use std::os::windows::ffi::OsStrExt;
         use windows_sys::Win32::Storage::FileSystem::CreateHardLinkW;
         fn wide(p: &Path) -> Vec<u16> {
-            p.as_os_str().encode_wide().chain(std::iter::once(0)).collect()
+            p.as_os_str()
+                .encode_wide()
+                .chain(std::iter::once(0))
+                .collect()
         }
         let target = self.path.join(target_rel);
         let link = self.path.join(rel_link);
-        let ok = unsafe { CreateHardLinkW(wide(&link).as_ptr(), wide(&target).as_ptr(), std::ptr::null()) };
+        let ok = unsafe {
+            CreateHardLinkW(
+                wide(&link).as_ptr(),
+                wide(&target).as_ptr(),
+                std::ptr::null(),
+            )
+        };
         ok != 0
     }
 
@@ -96,7 +105,10 @@ impl Drop for Fixture {
             .args(["/reset", "/T"])
             .output();
         if std::fs::remove_dir_all(&self.path).is_err() {
-            eprintln!("WARNING: fixture cleanup failed, leftover at {:?}", self.path);
+            eprintln!(
+                "WARNING: fixture cleanup failed, leftover at {:?}",
+                self.path
+            );
         }
     }
 }

@@ -205,7 +205,13 @@ impl Tree {
         id
     }
 
-    fn push_node(&mut self, parent: Option<NodeId>, name: &str, node_flags: u16, mtime: i64) -> NodeId {
+    fn push_node(
+        &mut self,
+        parent: Option<NodeId>,
+        name: &str,
+        node_flags: u16,
+        mtime: i64,
+    ) -> NodeId {
         let (name_off, name_len) = self.strings.push(name);
         let depth = match parent {
             Some(p) => self.nodes[p as usize].depth + 1,
