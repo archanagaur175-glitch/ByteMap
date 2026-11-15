@@ -4,7 +4,7 @@
 // component can hit-test clicks with the same numbers.
 
 import { formatBytes } from "./parseView";
-import type { Orbit } from "./orbitView";
+import type { Orbit } from "./orbit";
 
 export interface OrbitScene {
   orbit: Orbit;
@@ -38,7 +38,6 @@ export class Canvas2DRenderer implements OrbitRenderer {
   private ctx: CanvasRenderingContext2D;
   private w = 0;
   private h = 0;
-  private dpr = 1;
   private geo = { cx: 0, cy: 0, innerR: 0, ringWidth: 0 };
 
   constructor(canvas: HTMLCanvasElement) {
@@ -50,7 +49,6 @@ export class Canvas2DRenderer implements OrbitRenderer {
   resize(width: number, height: number, dpr: number): void {
     this.w = width;
     this.h = height;
-    this.dpr = dpr;
     const canvas = this.ctx.canvas;
     canvas.width = Math.max(1, Math.round(width * dpr));
     canvas.height = Math.max(1, Math.round(height * dpr));
@@ -102,7 +100,7 @@ export class Canvas2DRenderer implements OrbitRenderer {
 
   private drawArc(
     scene: OrbitScene,
-    arc: import("./orbitView").OrbitArc,
+    arc: import("./orbit").OrbitArc,
     cx: number,
     cy: number,
     innerR: number,

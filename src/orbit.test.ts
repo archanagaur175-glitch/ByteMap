@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { parseOrbit, hitTest, ORBIT_VERSION } from "./orbitView";
-import type { Orbit } from "./orbitView";
+import { parseOrbit, hitTest, ORBIT_VERSION } from "./orbit";
+import type { Orbit } from "./orbit";
 import { mix } from "./renderer";
 
 // Mirrors crates/bytemap-core/src/orbit.rs::serialize_orbit.

@@ -4,7 +4,9 @@
 import { create } from "zustand";
 import { invoke, Channel } from "@tauri-apps/api/core";
 import { parseView } from "./parseView";
+import { parseOrbit } from "./orbit";
 import type { View, ViewItem } from "./parseView";
+import type { Orbit } from "./orbit";
 
 export type Phase = "idle" | "scanning" | "done" | "error";
 
@@ -22,6 +24,8 @@ interface ByteMapState {
   error: string | null;
   rootId: number | null;
   view: View | null;
+  /** Sunburst layout for the same node as `view` (null = not loaded). */
+  orbit: Orbit | null;
   selectedId: number | null;
   /** Name of the currently open node (for the breadcrumb's last crumb). */
   tailName: string | null;
@@ -40,6 +44,7 @@ export const useStore = create<ByteMapState>((set, get) => ({
   error: null,
   rootId: null,
   view: null,
+  orbit: null,
   selectedId: null,
   tailName: null,
 
@@ -51,7 +56,7 @@ export const useStore = create<ByteMapState>((set, get) => ({
       set({ error: "enter a folder to scan" });
       return;
     }
-    set({ phase: "scanning", progress: null, error: null, rootId: null, view: null, tailName: null });
+    set({ phase: "scanning", progress: null, error: null, rootId: null, view: null, orbit: null, tailName: null });
     const channel = new Channel<string>();
     channel.onmessage = (msg) => {
       const event = JSON.parse(msg) as
@@ -109,9 +114,12 @@ export const useStore = create<ByteMapState>((set, get) => ({
       const item = cur?.items.find((it) => it.id === nodeId && !it.isFolded);
       const anc = cur?.ancestors.find((a) => a.id === nodeId);
       const tailName = item?.name ?? anc?.name ?? get().tailName ?? null;
-      // Response with Raw body arrives as ArrayBuffer.
-      const buf = (await invoke("node_view", { nodeId, limit: 200 })) as ArrayBuffer;
-      set({ view: parseView(buf), selectedId: nodeId, tailName });
+      // Responses with Raw bodies arrive as ArrayBuffer.
+      const [buf, obuf] = (await Promise.all([
+        invoke("node_view", { nodeId, limit: 200 }),
+        invoke("node_orbit", { nodeId, rings: 4, maxArcs: 4000 }),
+      ])) as [ArrayBuffer, ArrayBuffer];
+      set({ view: parseView(buf), orbit: parseOrbit(obuf), selectedId: nodeId, tailName });
     } catch (e) {
       set({ error: String(e) });
     }
