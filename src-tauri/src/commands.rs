@@ -12,6 +12,7 @@ use tauri::State;
 use bytemap_scan::{scan_folder, ScanError, ScanOptions, ScanProgress};
 
 use crate::state::SharedSession;
+use crate::view;
 
 /// Batches progress updates: at most one emission per `min_interval`.
 /// Pure with respect to the injected `now`, so it is unit-testable.
@@ -139,4 +140,21 @@ pub fn start_scan(
 #[tauri::command]
 pub fn cancel_scan(session: State<'_, SharedSession>) {
     session.lock().unwrap().cancel.store(true, Ordering::Relaxed);
+}
+
+/// Binary view: ancestor chain (breadcrumb) + top-N children by size with
+/// the remainder folded into one "N small items" entry. Travels as packed
+/// little-endian bytes via tauri::ipc::Response (PROJECT_BRIEF rule).
+#[tauri::command]
+pub fn node_view(
+    node_id: u32,
+    limit: Option<u32>,
+    session: State<'_, SharedSession>,
+) -> tauri::ipc::Response {
+    let limit = limit.unwrap_or(200).clamp(1, 2000);
+    let bytes = {
+        let s = session.lock().unwrap();
+        view::view_bytes(&s.tree, node_id, limit)
+    };
+    tauri::ipc::Response::new(tauri::ipc::InvokeResponseBody::Raw(bytes))
 }

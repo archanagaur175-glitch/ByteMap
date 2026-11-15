@@ -3,6 +3,7 @@
 
 mod commands;
 mod state;
+mod view;
 
 fn main() {
     tauri::Builder::default()
@@ -10,6 +11,7 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             commands::start_scan,
             commands::cancel_scan,
+            commands::node_view,
         ])
         .run(tauri::generate_context!())
         .expect("error while running ByteMap");
