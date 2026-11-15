@@ -106,6 +106,16 @@ pub fn scan_folder(root: &Path, tree: &mut Tree, options: &ScanOptions) -> Resul
 
     for entry in walk {
         let entry = entry?;
+        // A failed read_dir is attached to the PARENT entry's read_children
+        // (jwalk still yields the parent as Ok), so check it explicitly.
+        if entry
+            .read_children
+            .as_ref()
+            .map(|rc| rc.error().is_some())
+            .unwrap_or(false)
+        {
+            stats.denied += 1;
+        }
         let info = entry.client_state;
         let name = entry.file_name().to_string_lossy().into_owned();
 
@@ -139,7 +149,9 @@ pub fn scan_folder(root: &Path, tree: &mut Tree, options: &ScanOptions) -> Resul
         }
     }
 
-    stats.denied = denied.load(Ordering::Relaxed);
+    // Err children removed in process_read_dir + read_dir-level failures
+    // (attached by jwalk to the parent's read_children, counted in the loop).
+    stats.denied += denied.load(Ordering::Relaxed);
     stats.elapsed_ms = start.elapsed().as_millis();
     bytemap_core::recompute_rollups(tree);
     Ok(stats)

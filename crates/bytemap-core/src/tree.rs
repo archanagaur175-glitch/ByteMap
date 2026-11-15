@@ -64,6 +64,21 @@ impl Node {
     pub fn mtime(&self) -> i64 {
         self.mtime
     }
+
+    /// Number of direct children.
+    pub fn child_count(&self) -> u32 {
+        self.child_count
+    }
+
+    /// Aggregate logical size (own size for files; rolled-up sum for dirs).
+    pub fn agg_logical(&self) -> u64 {
+        self.agg_logical
+    }
+
+    /// Aggregate size on disk (same convention as [`Self::agg_logical`]).
+    pub fn agg_on_disk(&self) -> u64 {
+        self.agg_on_disk
+    }
 }
 
 const _: () = assert!(
