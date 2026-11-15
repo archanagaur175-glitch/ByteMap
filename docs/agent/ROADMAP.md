@@ -32,8 +32,12 @@ Result: 100k fixture (101,112 entries incl. marker): cold 1.407 s / 71.9k entrie
 - [x] P2.T5 | Testability refactor: lib crate bytemap_lib + run_scan_job extraction; full-flow integration test on %TEMP%\bytemap-bench-100k (throttling proven, view bytes decoded) | src-tauri/src/lib.rs, commands.rs, src-tauri/tests/flow.rs | scripts/check.ps1
 - [x] P2.GATE | Full check green; memory files updated; commit + push | docs/agent/* | scripts/check.ps1 exit 0
 
-## Phase 3 — Orbit view (detail pending approval)
-- [ ] P3.T1 Rust sunburst layout | [ ] P3.T2 Renderer interface + Canvas 2D | [ ] P3.T3 drill + breadcrumb | [ ] P3.T4 hover + inspector | [ ] P3.T5 60 fps @ 4000 primitives gate
+## Phase 3 — Orbit view (APPROVED 2026-11-15)
+- [ ] P3.T1 | Rust sunburst layout: orbit.rs in bytemap-core (angle = share of parent's aggregate size, rings = depth, fixed-point 65536/turn, min-sweep skip, arc cap), packed-LE serialize; node_orbit command via ipc::Response Raw | crates/bytemap-core/src/orbit.rs, lib.rs; src-tauri/src/view.rs, commands.rs, lib.rs | cargo test -p bytemap-core && cargo test -p bytemap
+- [ ] P3.T2 | Frontend: orbit binary parser + Renderer interface + Canvas2DRenderer (draw arcs, hit-test) + OrbitView canvas component wired to store | src/orbitView.ts, src/renderer.ts, src/OrbitView.tsx, src/store.ts | npx vitest run && npm run build
+- [ ] P3.T3 | Drill: click arc re-centers (openNode), 320ms drill motion (0ms under prefers-reduced-motion), breadcrumb navigation | src/OrbitView.tsx, src/store.ts | npm run build
+- [ ] P3.T4 | Hover highlight + inspector panel (name, logical/on-disk, flags badges) | src/OrbitView.tsx, src/Inspector.tsx, src/styles.css | npm run build
+- [ ] P3.T5 | Perf gate: rAF frame-time instrumentation + synthetic 4000-arc bench mode; measured on real hardware, numbers logged; owner confirms 60fps | src/perf.ts, OrbitView wiring | owner-run bench, output recorded in SESSION_LOG.md
 
 ## Phase 4 — Categorization and safety tiers (detail pending approval)
 - [ ] P4.T1 embedded TOML rule engine | [ ] P4.T2 tiers + badges | [ ] P4.T3 legend + filters | [ ] P4.T4 Protected-never-deletable gate

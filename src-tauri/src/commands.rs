@@ -180,3 +180,20 @@ pub fn node_view(
     };
     tauri::ipc::Response::new(tauri::ipc::InvokeResponseBody::Raw(bytes))
 }
+
+/// Orbit (sunburst) layout: center = current folder, rings = depth,
+/// angle = size. Travels as packed little-endian bytes via ipc::Response.
+#[tauri::command]
+pub fn node_orbit(
+    node_id: u32,
+    rings: Option<u16>,
+    max_arcs: Option<u32>,
+    session: State<'_, SharedSession>,
+) -> tauri::ipc::Response {
+    let rings = rings.unwrap_or(4).clamp(1, 8);
+    let bytes = {
+        let s = session.lock().unwrap();
+        view::orbit_bytes(&s.tree, node_id, rings, max_arcs.unwrap_or(0))
+    };
+    tauri::ipc::Response::new(tauri::ipc::InvokeResponseBody::Raw(bytes))
+}
