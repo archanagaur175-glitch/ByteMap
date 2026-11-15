@@ -6,7 +6,7 @@ pub mod metadata;
 pub mod walker;
 
 pub use error::ScanError;
-pub use walker::{scan_folder, ScanOptions, ScanStats};
+pub use walker::{scan_folder, ScanOptions, ScanProgress, ScanStats};
 
 /// Placeholder version marker.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

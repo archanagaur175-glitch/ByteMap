@@ -10,7 +10,7 @@ use fixtures::Fixture;
 
 fn scan(fx: &Fixture) -> Result<(Tree, ScanStats), ScanError> {
     let mut tree = Tree::new();
-    let stats = scan_folder(fx.path(), &mut tree, &ScanOptions::default())?;
+    let stats = scan_folder(fx.path(), &mut tree, &ScanOptions::default(), None)?;
     Ok((tree, stats))
 }
 
@@ -106,7 +106,9 @@ fn hardlinks_dedup_counts_once_by_file_id() {
         &mut tree,
         &ScanOptions {
             hardlink_dedup: true,
+            ..Default::default()
         },
+        None,
     )
     .expect("scan with dedup");
     let root = tree.root().unwrap();
@@ -128,6 +130,48 @@ fn hardlinks_dedup_counts_once_by_file_id() {
         0,
         "duplicate contributes no size"
     );
+}
+
+#[test]
+fn cancel_flag_stops_scan_with_cancelled_error() {
+    let fx = Fixture::empty("cancel");
+    fx.file("a.txt", 10);
+    let cancel = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true)); // pre-cancelled
+    let mut tree = Tree::new();
+    let err = scan_folder(
+        fx.path(),
+        &mut tree,
+        &ScanOptions {
+            cancel: Some(cancel),
+            ..Default::default()
+        },
+        None,
+    );
+    assert!(matches!(err, Err(ScanError::Cancelled)), "expected Cancelled, got {err:?}");
+    // Nothing was inserted (cancel checked before the first entry).
+    assert!(tree.is_empty() || tree.len() <= 1);
+}
+
+#[test]
+fn progress_callback_receives_counters() {
+    let fx = Fixture::empty("progress");
+    fx.file("sub/x.bin", 100);
+    fx.file("y.bin", 5);
+    let calls = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
+    let calls_cb = calls.clone();
+    let mut tree = Tree::new();
+    let stats = scan_folder(
+        fx.path(),
+        &mut tree,
+        &ScanOptions::default(),
+        Some(&move |p| {
+            calls_cb.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            assert!(p.files + p.dirs >= 1);
+        }),
+    )
+    .expect("scan with progress");
+    assert!(calls.load(std::sync::atomic::Ordering::Relaxed) >= 2, "progress called per entry");
+    assert_eq!(stats.files, 2);
 }
 
 #[test]

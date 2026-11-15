@@ -8,6 +8,8 @@ pub enum ScanError {
     Root(PathBuf, std::io::Error),
     #[error("walk error{maybe}: {0}", maybe = .0.path().map(|p| format!(" near {p:?}")).unwrap_or_default())]
     Walk(#[from] jwalk::Error),
+    #[error("scan was cancelled by the caller")]
+    Cancelled,
     #[error("internal error: parent directory {0:?} was not registered before its children")]
     MissingParent(PathBuf),
 }

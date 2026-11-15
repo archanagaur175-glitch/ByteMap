@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 use std::os::windows::fs::MetadataExt;
 use std::path::Path;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
@@ -24,13 +24,16 @@ struct EntryInfo {
     mtime: i64,
 }
 
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct ScanOptions {
     /// Deduplicate hardlinks by file ID. When set, the second and later
     /// names of a hardlinked file are flagged `DUPLICATE_HARDLINK` and
     /// contribute no size. Costs one handle-open per file (benchmarked in
     /// P1.T3b); default is decided by the owner.
     pub hardlink_dedup: bool,
+    /// Cooperative cancel flag, checked between entries. When triggered the
+    /// scan stops early and returns [`ScanError::Cancelled`].
+    pub cancel: Option<Arc<AtomicBool>>,
 }
 
 /// Totals from one scan.
@@ -50,13 +53,24 @@ pub struct ScanStats {
 /// - OneDrive placeholders are recorded but never hydrated;
 /// - access-denied entries are counted in `ScanStats::denied`, not fatal;
 /// - long paths work (the root is canonicalized to a `\\?\`-style path);
-/// - sizes: logical + size on disk.
+/// - sizes: logical + size on disk;
+/// - `options.cancel` stops the scan early with `ScanError::Cancelled`;
+/// - `on_progress` (if given) is called from the consumer loop with running
+///   counters; the CALLER throttles it (UI batches at <= 20/s upstream).
+#[derive(Debug, Clone, Copy)]
+pub struct ScanProgress {
+    pub files: u64,
+    pub dirs: u64,
+    pub denied: u64,
+    pub elapsed_ms: u128,
+}
+
 pub fn scan_folder(
     root: &Path,
     tree: &mut Tree,
     options: &ScanOptions,
+    on_progress: Option<&dyn Fn(ScanProgress)>,
 ) -> Result<ScanStats, ScanError> {
-    let _ = options; // consumed fully in P1.T3b (hardlink dedup)
     let start = Instant::now();
     // canonicalize() returns a \\?\-style path on Windows: long paths work.
     let canonical = std::fs::canonicalize(root).map_err(|e| ScanError::Root(root.to_owned(), e))?;
@@ -136,6 +150,11 @@ pub fn scan_folder(
     let mut stats = ScanStats::default();
 
     for entry in walk {
+        if let Some(cancel) = &options.cancel {
+            if cancel.load(Ordering::Relaxed) {
+                return Err(ScanError::Cancelled);
+            }
+        }
         let entry = entry?;
         // A failed read_dir is attached to the PARENT entry's read_children
         // (jwalk still yields the parent as Ok), so check it explicitly.
@@ -191,6 +210,14 @@ pub fn scan_folder(
                 info.on_disk,
             );
             stats.files += 1;
+        }
+        if let Some(on_progress) = on_progress {
+            on_progress(ScanProgress {
+                files: stats.files,
+                dirs: stats.dirs,
+                denied: stats.denied,
+                elapsed_ms: start.elapsed().as_millis(),
+            });
         }
     }
 

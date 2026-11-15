@@ -56,7 +56,9 @@ fn run_once(root: &Path, label: &str, dedup: bool) -> Result<(), bytemap_scan::S
         &mut tree,
         &ScanOptions {
             hardlink_dedup: dedup,
+            ..Default::default()
         },
+        None,
     )?;
     let entries = tree.len() as u64;
     let per_sec = if stats.elapsed_ms > 0 {
