@@ -10,6 +10,10 @@ export interface OrbitScene {
   orbit: Orbit;
   hoveredId: number | null;
   selectedId: number | null;
+  /** Drill-in animation: 1 = rest, <1 = scaled down around the center. */
+  zoom?: number;
+  /** Drill-in animation: 1 = opaque, 0 = invisible. */
+  alpha?: number;
 }
 
 export interface OrbitRenderer {
@@ -72,6 +76,16 @@ export class Canvas2DRenderer implements OrbitRenderer {
     const ringWidth = (outer - innerR) / Math.max(1, orbit.rings);
     this.geo = { cx, cy, innerR, ringWidth };
 
+    const zoom = scene.zoom ?? 1;
+    const alpha = scene.alpha ?? 1;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    if (zoom !== 1) {
+      ctx.translate(cx, cy);
+      ctx.scale(zoom, zoom);
+      ctx.translate(-cx, -cy);
+    }
+
     // Arcs, outermost painted first so inner rings overlap cleanly.
     for (let depth = orbit.rings; depth >= 1; depth--) {
       for (const arc of orbit.arcs) {
@@ -96,6 +110,7 @@ export class Canvas2DRenderer implements OrbitRenderer {
     ctx.fillStyle = "#8892a6";
     ctx.font = '11px "Segoe UI Variable Text", "Segoe UI", sans-serif';
     ctx.fillText("on disk " + formatBytes(orbit.centerOnDisk), cx, cy + 9);
+    ctx.restore();
   }
 
   private drawArc(

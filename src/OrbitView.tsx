@@ -17,6 +17,7 @@ export function OrbitView() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<Canvas2DRenderer | null>(null);
+  const animRef = useRef<number | null>(null);
   const [hoveredId, setHoveredId] = useState<number | null>(null);
 
   const draw = () => {
@@ -50,11 +51,64 @@ export function OrbitView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Redraw when the orbit, selection, or hover changes.
+  // Plain redraw on hover/selection changes (declared before the drill
+  // effect so a same-commit orbit change ends up rendered by the drill's
+  // synchronous first frame, not by this one).
   useEffect(() => {
     draw();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orbit, selectedId, hoveredId]);
+  }, [hoveredId, selectedId]);
+
+  // Drill motion: 320ms zoom-in whenever the orbit is re-centered
+  // (PROJECT_BRIEF), skipped entirely under prefers-reduced-motion.
+  useEffect(() => {
+    if (!orbit) return;
+    const reduce =
+      typeof window.matchMedia === "function" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduce) {
+      draw();
+      return;
+    }
+    const renderer = rendererRef.current;
+    if (!renderer) return;
+    const start = performance.now();
+    const dur = 320;
+    const tick = (now: number) => {
+      const t = Math.min(1, (now - start) / dur);
+      const e = 1 - Math.pow(1 - t, 3); // ease-out cubic
+      const cur = useStore.getState();
+      if (cur.orbit) {
+        renderer.render({
+          orbit: cur.orbit,
+          hoveredId: null,
+          selectedId: cur.selectedId,
+          zoom: 0.85 + 0.15 * e,
+          alpha: e,
+        });
+      }
+      if (t < 1) {
+        animRef.current = requestAnimationFrame(tick);
+      } else {
+        animRef.current = null;
+      }
+    };
+    renderer.render({
+      orbit,
+      hoveredId: null,
+      selectedId: useStore.getState().selectedId,
+      zoom: 0.85,
+      alpha: 0,
+    });
+    animRef.current = requestAnimationFrame(tick);
+    return () => {
+      if (animRef.current !== null) {
+        cancelAnimationFrame(animRef.current);
+        animRef.current = null;
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orbit]);
 
   if (!orbit) return null;
 
