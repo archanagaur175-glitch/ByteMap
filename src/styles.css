@@ -241,3 +241,11 @@ body {
   text-align: center;
   line-height: 1.5;
 }
+
+.bench-hud {
+  color: var(--text);
+  padding: 6px 10px;
+  border: 1px solid #2a3350;
+  border-radius: 12px;
+  background: var(--panel);
+}

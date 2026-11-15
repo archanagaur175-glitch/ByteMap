@@ -1,8 +1,13 @@
 import { TreeList } from "./TreeList";
 import { OrbitView } from "./OrbitView";
+import { OrbitBench } from "./OrbitBench";
 import { useStore } from "./store";
 
 export default function App() {
+  // Perf bench mode: open with #orbit-bench in the URL.
+  if (window.location.hash === "#orbit-bench") {
+    return <OrbitBench />;
+  }
   const {
     folder, phase, progress, error, rootId, view, selectedId, tailName,
     setFolder, startScan, cancelScan, openNode,

@@ -13,8 +13,15 @@ cancel_scan (progress Channel <=20/s, proven by flow.rs integration test on the 
 binary node_view API (packed LE format in bytemap-core::view; top-N + folded "N small items"), zustand
 store + parser (vitest 3/3), minimal UI (virtualized 28px-row TreeList, breadcrumb, dark tokens).
 src-tauri is now a lib crate (bytemap_lib: run(), commands, state, view modules) + thin main.rs, so
-src-tauri/tests/flow.rs drives the full scan pipeline without a webview. Phase 3 NOT started; awaiting
-owner "APPROVED: Phase 3" (Orbit view). Owner items pending: dedup default choice, P1.T7 MFT spike approval.
+src-tauri/tests/flow.rs drives the full scan pipeline without a webview. Phase 3 (Orbit view) approved
+and T1..T4 done: orbit.rs sunburst layout in bytemap-core (fixed-point angles 65536/turn, MIN_SWEEP=16
+skip, 4000-arc cap, packed LE via node_orbit command), Canvas2DRenderer behind a Renderer interface
+with hit-test, OrbitView component wired into store/App (openNode fetches view+orbit in parallel),
+320ms ease-out drill motion (instant under prefers-reduced-motion), Inspector panel with text flag
+badges. src/orbitView.ts was renamed src/orbit.ts (Windows case-insensitive collision with
+OrbitView.tsx broke tsc). P3.T5 perf bench BUILT (src/perf.ts synthetic 4000-arc rotating scene,
+#orbit-bench URL mode, ORBIT-BENCH console line) — awaiting owner-run measurement to close Phase 3.
+Two owner items still pending: dedup default choice, P1.T7 MFT spike approval.
 
 Environment facts: rustc/cargo 1.97.1 pinned via rust-toolchain.toml (clippy + rustfmt components);
 node 22.22.3 / npm 10.9.8; Tauri CLI comes from npm @tauri-apps/cli (no global install);

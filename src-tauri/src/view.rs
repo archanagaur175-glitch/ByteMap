@@ -2,7 +2,7 @@
 //! The heavy lifting (top-N, folding, ancestor chain, sunburst, binary
 //! formats) lives in bytemap-core.
 
-use bytemap_core::{build_orbit, serialize_orbit, build_view, serialize_view, Tree};
+use bytemap_core::{build_orbit, build_view, serialize_orbit, serialize_view, Tree};
 
 /// Serialize the view for `node_id` into the packed binary format
 /// documented in bytemap-core::view.

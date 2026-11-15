@@ -254,7 +254,14 @@ mod tests {
         let mut t = Tree::new();
         let root = t.insert_root("C:");
         for i in 0..50 {
-            t.insert_child(root, &format!("f{i:02}"), 0, 0, 100 - i as u64, 100 - i as u64);
+            t.insert_child(
+                root,
+                &format!("f{i:02}"),
+                0,
+                0,
+                100 - i as u64,
+                100 - i as u64,
+            );
         }
         crate::rollup::recompute_rollups(&mut t);
         let orbit = build_orbit(&t, root, 1, 7);
