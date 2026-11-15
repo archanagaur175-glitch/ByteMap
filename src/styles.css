@@ -1,0 +1,160 @@
+/* Phase 2 minimal UI — dark tokens from PROJECT_BRIEF.
+   Full Windows 11 polish (Mica, motion, themes) lands in Phase 7. */
+
+:root {
+  --bg: #0b0f1a;
+  --text: #e8ecf6;
+  --accent: #6ea8ff;
+  --panel: #131a2b;
+  --muted: #8892a6;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  font-size: 13px;
+}
+
+#app-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  padding: 8px;
+  gap: 6px;
+}
+
+.topbar {
+  display: flex;
+  gap: 6px;
+}
+
+.folder-input {
+  flex: 1;
+  padding: 6px 10px;
+  border: 1px solid #2a3350;
+  border-radius: 12px;
+  background: var(--panel);
+  color: var(--text);
+  outline: none;
+}
+
+.folder-input:focus {
+  border-color: var(--accent);
+}
+
+.btn {
+  padding: 6px 18px;
+  border: none;
+  border-radius: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn.primary {
+  background: var(--accent);
+  color: #0b0f1a;
+}
+
+.btn.cancel {
+  background: #3a2431;
+  color: #ff5d5d;
+}
+
+.progress-line,
+.error-line,
+.stats-line {
+  color: var(--muted);
+  padding: 2px 4px;
+}
+
+.error-line {
+  color: #ff5d5d;
+}
+
+.breadcrumb {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  padding: 2px 4px;
+}
+
+.crumb {
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.crumb:hover {
+  text-decoration: underline;
+}
+
+.crumb.current {
+  color: var(--text);
+  cursor: default;
+}
+
+.tree-list {
+  flex: 1;
+  overflow-y: auto;
+  border: 1px solid #2a3350;
+  border-radius: 12px;
+  background: var(--panel);
+}
+
+.tree-row {
+  position: absolute;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.tree-row:hover {
+  background: #1a2338;
+}
+
+.tree-row.selected {
+  background: #24304d;
+}
+
+.tree-row.folded {
+  color: var(--muted);
+  cursor: default;
+}
+
+.tree-indent {
+  flex: none;
+}
+
+.tree-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tree-size {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  font-family: "Cascadia Mono", Consolas, monospace;
+}
+
+.tier-dir {
+  width: 14px;
+  color: var(--accent);
+}
+
+.empty-hint {
+  color: var(--muted);
+  margin: auto;
+  max-width: 480px;
+  text-align: center;
+  line-height: 1.5;
+}

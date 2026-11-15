@@ -3,6 +3,7 @@
 
 import { create } from "zustand";
 import { invoke, Channel } from "@tauri-apps/api/core";
+import { parseView } from "./parseView";
 import type { View, ViewItem } from "./parseView";
 
 export type Phase = "idle" | "scanning" | "done" | "error";
@@ -22,6 +23,8 @@ interface ByteMapState {
   rootId: number | null;
   view: View | null;
   selectedId: number | null;
+  /** Name of the currently open node (for the breadcrumb's last crumb). */
+  tailName: string | null;
   // commands
   setFolder: (folder: string) => void;
   startScan: () => Promise<void>;
@@ -38,6 +41,7 @@ export const useStore = create<ByteMapState>((set, get) => ({
   rootId: null,
   view: null,
   selectedId: null,
+  tailName: null,
 
   setFolder: (folder) => set({ folder }),
 
@@ -47,7 +51,7 @@ export const useStore = create<ByteMapState>((set, get) => ({
       set({ error: "enter a folder to scan" });
       return;
     }
-    set({ phase: "scanning", progress: null, error: null, rootId: null, view: null });
+    set({ phase: "scanning", progress: null, error: null, rootId: null, view: null, tailName: null });
     const channel = new Channel<string>();
     channel.onmessage = (msg) => {
       const event = JSON.parse(msg) as
@@ -68,7 +72,7 @@ export const useStore = create<ByteMapState>((set, get) => ({
           break;
         case "complete": {
           const rootId = event.rootId ?? null;
-          set({ phase: "done", progress: null, rootId });
+          set({ phase: "done", progress: null, rootId, tailName: "root" });
           if (rootId !== null) {
             void get().openNode(rootId);
           }
@@ -99,9 +103,15 @@ export const useStore = create<ByteMapState>((set, get) => ({
 
   openNode: async (nodeId) => {
     try {
+      // The name of the node being opened: look it up in the current view
+      // (items or ancestors); fall back to null => breadcrumb shows "root".
+      const cur = get().view;
+      const item = cur?.items.find((it) => it.id === nodeId && !it.isFolded);
+      const anc = cur?.ancestors.find((a) => a.id === nodeId);
+      const tailName = item?.name ?? anc?.name ?? get().tailName ?? null;
       // Response with Raw body arrives as ArrayBuffer.
       const buf = (await invoke("node_view", { nodeId, limit: 200 })) as ArrayBuffer;
-      set({ view: parseViewItem(buf), selectedId: nodeId });
+      set({ view: parseView(buf), selectedId: nodeId, tailName });
     } catch (e) {
       set({ error: String(e) });
     }
@@ -109,12 +119,6 @@ export const useStore = create<ByteMapState>((set, get) => ({
 
   select: (id) => set({ selectedId: id }),
 }));
-
-// Imported here (not at top) to keep the store's tauri imports together.
-import { parseView } from "./parseView";
-function parseViewItem(buf: ArrayBuffer): View {
-  return parseView(buf);
-}
 
 export function isFolded(item: ViewItem): boolean {
   return item.isFolded;
