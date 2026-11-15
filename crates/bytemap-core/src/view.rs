@@ -181,7 +181,10 @@ mod tests {
         let sub = t.insert_child(root, "sub", flags::DIR, 0, 0, 0);
         let file = t.insert_child(sub, "f.txt", 0, 0, 1, 1);
         let view = build_view(&t, file, 10);
-        assert_eq!(view.ancestors, vec![(root, "C:".to_string()), (sub, "sub".to_string())]);
+        assert_eq!(
+            view.ancestors,
+            vec![(root, "C:".to_string()), (sub, "sub".to_string())]
+        );
         let root_view = build_view(&t, root, 10);
         assert!(root_view.ancestors.is_empty());
     }

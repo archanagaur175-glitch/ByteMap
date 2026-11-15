@@ -5,11 +5,16 @@ Project: ByteMap — native Windows 11 disk-space analyzer. Tauri 2 + Rust works
 Licence: MIT OR Apache-2.0 (dual). Repo: C:\Users\archa\Documents\ByteMap.
 Remote: origin https://github.com/archanagaur175-glitch/ByteMap (branch main, push authorized after each task).
 
-Current state: PHASES 0+1 COMPLETE, gates green (2026-11-15). Arena tree + roll-ups in bytemap-core;
+Current state: PHASES 0+1+2 COMPLETE, gates green (2026-11-15). Arena tree + roll-ups in bytemap-core;
 walker scanner (jwalk 0.9) with all scanner rules verified by fixture tests; bench-walk binary with
 reusable %TEMP%\bytemap-bench-100k fixture (101,112 entries: cold 71.9k/s, warm 73.3k/s, best 82.0k/s,
-with hardlink dedup 38.0k/s; target 33.3k/s met; Defender real-time was ON). Phase 2 NOT started;
-awaiting owner "APPROVED: Phase 2". Two owner items pending: dedup default choice, P1.T7 MFT spike approval.
+with hardlink dedup 38.0k/s; target 33.3k/s met; Defender real-time was ON). Phase 2 done: start_scan/
+cancel_scan (progress Channel <=20/s, proven by flow.rs integration test on the real 100k volume),
+binary node_view API (packed LE format in bytemap-core::view; top-N + folded "N small items"), zustand
+store + parser (vitest 3/3), minimal UI (virtualized 28px-row TreeList, breadcrumb, dark tokens).
+src-tauri is now a lib crate (bytemap_lib: run(), commands, state, view modules) + thin main.rs, so
+src-tauri/tests/flow.rs drives the full scan pipeline without a webview. Phase 3 NOT started; awaiting
+owner "APPROVED: Phase 3" (Orbit view). Owner items pending: dedup default choice, P1.T7 MFT spike approval.
 
 Environment facts: rustc/cargo 1.97.1 pinned via rust-toolchain.toml (clippy + rustfmt components);
 node 22.22.3 / npm 10.9.8; Tauri CLI comes from npm @tauri-apps/cli (no global install);
@@ -20,7 +25,11 @@ generated from app-icon/icon-source.png (not a brand asset). Scan deps: jwalk 0.
 thiserror 2.0.21. Gotchas learned: [target.'cfg(windows)'.dependencies] (not [target.windows]);
 jwalk: skip_hidden(false) required, failed child read_dir attaches to read_children.error (pub), parents
 before children guaranteed (strict DFS), metadata() = symlink_metadata (no follow); denied-dir probe:
-icacls /deny user:(OI)(CI)R + self-verify read_dir fails.
+icacls /deny user:(OI)(CI)R + self-verify read_dir fails. Tauri 2 gotchas: Channel::send takes
+InvokeResponseBody (wrap with ::Json(string)); Channel::new(handler) invokes the closure directly on
+send (works webview-free in tests); frontend Channel API = property assignment (channel.onmessage = fn),
+NOT .onmessage(fn); serde_json cannot serialize u128 (cast elapsed to u64); JS camelCase args
+(onEvent, nodeId) map to Rust snake_case; node_view returns ArrayBuffer for Raw responses.
 
 Non-negotiables:
 - Read AGENTS.md -> docs/agent/CONTEXT_RESUME.md -> docs/agent/STATUS.md every session.
@@ -35,7 +44,7 @@ Non-negotiables:
 - Local-only product: no telemetry, no network calls, no accounts.
 - Deps approved for Phase 0 only: react, react-dom, vite, typescript, @vitejs/plugin-react,
   @types/react, @types/react-dom, @tauri-apps/api, @tauri-apps/cli (dev), vitest (dev);
-  Rust: tauri, tauri-build, serde, serde_json (src-tauri only). zustand waits for Phase 2.
+  Rust: tauri, tauri-build, serde, serde_json (src-tauri only). zustand approved + installed in Phase 2.
 - Check: scripts/check.ps1 (fmt, check, clippy -D warnings, test, npm build, vitest).
 - Open item: P6.T0 signing decision (owner undecided). P1.T7 MFT spike awaits owner approval.
 - Windows 11 is the target; Win10 = best-effort flat fallback, untested.

@@ -23,8 +23,14 @@
 
 Result: 100k fixture (101,112 entries incl. marker): cold 1.407 s / 71.9k entries/s, warm 1.379 s / 73.3k entries/s (process 2 cold 1.233 s / 82.0k); with hardlink dedup 2.659 s / 38.0k entries/s. Defender real-time protection ACTIVE during runs. Walker target (< 30 s per 1M entries = 33.3k/s) met in both modes. Dedup default: AWAITING OWNER CHOICE.
 
-## Phase 2 — IPC and minimal UI (detail pending approval)
-- [ ] P2.T1 scan start/cancel commands | [ ] P2.T2 batched progress via Channel <=20/s | [ ] P2.T3 binary view API (tauri::ipc::Response) | [ ] P2.T4 virtualized tree list | [ ] P2.T5 real-folder no-freeze gate (zustand approved here)
+## Phase 2 — IPC and minimal UI (APPROVED 2026-11-15)
+- [x] P2.T1a | Scanner hooks: cancel flag + per-entry progress callback (caller throttles) | bytemap-scan/src/walker.rs, error.rs, lib.rs | cargo test -p bytemap-scan (9 passed incl. cancel + progress)
+- [x] P2.T1b | start_scan/cancel_scan commands; session state (Rust owns tree); Throttle 50ms unit test | src-tauri/src/commands.rs, state.rs, main.rs | cargo test -p bytemap
+- [x] P2.T2 | Binary view API: build_view/serialize_view in bytemap-core (top-N + folded "N small items", packed LE); node_view command via ipc::Response Raw | crates/bytemap-core/src/view.rs, src-tauri/src/view.rs, commands.rs | cargo test -p bytemap-core (10 passed)
+- [x] P2.T4a | Frontend store (zustand) + binary view parser + vitest | src/store.ts, src/parseView.ts, src/parseView.test.ts | npx vitest run (3 passed)
+- [x] P2.T4b | Minimal UI: virtualized tree list (28px rows, window rendering), breadcrumb, progress line, dark tokens | src/App.tsx, src/TreeList.tsx, src/styles.css, src/main.tsx | npm run build
+- [x] P2.T5 | Testability refactor: lib crate bytemap_lib + run_scan_job extraction; full-flow integration test on %TEMP%\bytemap-bench-100k (throttling proven, view bytes decoded) | src-tauri/src/lib.rs, commands.rs, src-tauri/tests/flow.rs | scripts/check.ps1
+- [x] P2.GATE | Full check green; memory files updated; commit + push | docs/agent/* | scripts/check.ps1 exit 0
 
 ## Phase 3 — Orbit view (detail pending approval)
 - [ ] P3.T1 Rust sunburst layout | [ ] P3.T2 Renderer interface + Canvas 2D | [ ] P3.T3 drill + breadcrumb | [ ] P3.T4 hover + inspector | [ ] P3.T5 60 fps @ 4000 primitives gate

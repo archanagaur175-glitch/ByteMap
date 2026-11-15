@@ -23,7 +23,10 @@ pub struct Throttle {
 
 impl Throttle {
     pub fn new(min_interval: Duration) -> Self {
-        Throttle { min_interval, last: None }
+        Throttle {
+            min_interval,
+            last: None,
+        }
     }
 
     pub fn ready(&mut self, now: Instant) -> bool {
@@ -49,7 +52,10 @@ mod tests {
         assert!(t.ready(base), "first emission always allowed");
         assert!(!t.ready(base + Duration::from_millis(10)));
         assert!(!t.ready(base + Duration::from_millis(49)));
-        assert!(t.ready(base + Duration::from_millis(50)), "next allowed after 50ms");
+        assert!(
+            t.ready(base + Duration::from_millis(50)),
+            "next allowed after 50ms"
+        );
         assert!(!t.ready(base + Duration::from_millis(99)));
         assert!(t.ready(base + Duration::from_millis(100)));
         // 3 emissions in 100ms window => max 20/s respected.
@@ -96,50 +102,66 @@ pub fn start_scan(
     };
 
     std::thread::spawn(move || {
-        let throttle = std::sync::Mutex::new(Throttle::new(Duration::from_millis(50)));
-        let progress_channel = on_event.clone();
-        let progress: &dyn Fn(ScanProgress) = &move |p| {
-            if throttle.lock().unwrap().ready(Instant::now()) {
-                let body = InvokeResponseBody::Json(progress_event(p).to_string());
-                let _ = progress_channel.send(body);
-            }
-        };
-        let mut tree = bytemap_core::Tree::new();
-        let result = scan_folder(&path, &mut tree, &options, Some(progress));
-
-        let event = match result {
-            Ok(stats) => {
-                let root_id = tree.root();
-                let mut s = shared.lock().unwrap();
-                s.tree = tree;
-                s.running = false;
-                json!({
-                    "type": "complete",
-                    "rootId": root_id,
-                    "files": stats.files,
-                    "dirs": stats.dirs,
-                    "denied": stats.denied,
-                    "elapsedMs": stats.elapsed_ms as u64,
-                })
-            }
-            Err(ScanError::Cancelled) => {
-                shared.lock().unwrap().running = false;
-                json!({ "type": "cancelled" })
-            }
-            Err(e) => {
-                shared.lock().unwrap().running = false;
-                json!({ "type": "error", "message": e.to_string() })
-            }
-        };
-        let body = InvokeResponseBody::Json(event.to_string());
-        let _ = on_event.send(body);
+        run_scan_job(path, options, shared, on_event);
     });
     Ok(())
 }
 
+/// The scan job itself, separated from the command so integration tests can
+/// drive the whole flow (start -> throttled progress -> complete -> view)
+/// without a webview.
+pub fn run_scan_job(
+    path: std::path::PathBuf,
+    options: ScanOptions,
+    shared: SharedSession,
+    on_event: Channel,
+) {
+    let throttle = std::sync::Mutex::new(Throttle::new(Duration::from_millis(50)));
+    let progress_channel = on_event.clone();
+    let progress: &dyn Fn(ScanProgress) = &move |p| {
+        if throttle.lock().unwrap().ready(Instant::now()) {
+            let body = InvokeResponseBody::Json(progress_event(p).to_string());
+            let _ = progress_channel.send(body);
+        }
+    };
+    let mut tree = bytemap_core::Tree::new();
+    let result = scan_folder(&path, &mut tree, &options, Some(progress));
+
+    let event = match result {
+        Ok(stats) => {
+            let root_id = tree.root();
+            let mut s = shared.lock().unwrap();
+            s.tree = tree;
+            s.running = false;
+            json!({
+                "type": "complete",
+                "rootId": root_id,
+                "files": stats.files,
+                "dirs": stats.dirs,
+                "denied": stats.denied,
+                "elapsedMs": stats.elapsed_ms as u64,
+            })
+        }
+        Err(ScanError::Cancelled) => {
+            shared.lock().unwrap().running = false;
+            json!({ "type": "cancelled" })
+        }
+        Err(e) => {
+            shared.lock().unwrap().running = false;
+            json!({ "type": "error", "message": e.to_string() })
+        }
+    };
+    let body = InvokeResponseBody::Json(event.to_string());
+    let _ = on_event.send(body);
+}
+
 #[tauri::command]
 pub fn cancel_scan(session: State<'_, SharedSession>) {
-    session.lock().unwrap().cancel.store(true, Ordering::Relaxed);
+    session
+        .lock()
+        .unwrap()
+        .cancel
+        .store(true, Ordering::Relaxed);
 }
 
 /// Binary view: ancestor chain (breadcrumb) + top-N children by size with

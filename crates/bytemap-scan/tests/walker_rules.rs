@@ -147,7 +147,10 @@ fn cancel_flag_stops_scan_with_cancelled_error() {
         },
         None,
     );
-    assert!(matches!(err, Err(ScanError::Cancelled)), "expected Cancelled, got {err:?}");
+    assert!(
+        matches!(err, Err(ScanError::Cancelled)),
+        "expected Cancelled, got {err:?}"
+    );
     // Nothing was inserted (cancel checked before the first entry).
     assert!(tree.is_empty() || tree.len() <= 1);
 }
@@ -170,7 +173,10 @@ fn progress_callback_receives_counters() {
         }),
     )
     .expect("scan with progress");
-    assert!(calls.load(std::sync::atomic::Ordering::Relaxed) >= 2, "progress called per entry");
+    assert!(
+        calls.load(std::sync::atomic::Ordering::Relaxed) >= 2,
+        "progress called per entry"
+    );
     assert_eq!(stats.files, 2);
 }
 

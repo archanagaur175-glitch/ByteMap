@@ -1,3 +1,7 @@
+[lib]
+name = "bytemap_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
 [package]
 name = "bytemap"
 description = "ByteMap — Windows disk-space analyzer (Tauri shell, IPC commands)"
