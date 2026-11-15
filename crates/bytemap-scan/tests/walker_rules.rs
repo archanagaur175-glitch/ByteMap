@@ -70,6 +70,28 @@ fn hardlinks_counted_per_name_before_dedup() {
 }
 
 #[test]
+fn hardlinks_dedup_counts_once_by_file_id() {
+    let fx = Fixture::empty("hardlink-dedup");
+    fx.file("hard.txt", 7);
+    assert!(fx.hardlink("hard.txt", "hard2.txt"), "CreateHardLinkW failed");
+
+    let mut tree = Tree::new();
+    let stats = scan_folder(fx.path(), &mut tree, &ScanOptions { hardlink_dedup: true })
+        .expect("scan with dedup");
+    let root = tree.root().unwrap();
+    // Size counted once despite two names.
+    assert_eq!(tree.node(root).agg_logical(), 7, "hardlink counted once with dedup");
+    assert_eq!(stats.files, 2, "both names still listed as nodes");
+    let dup = find_by_name(&tree, "hard2.txt").expect("second hardlink name present");
+    assert_eq!(
+        tree.node(dup).flags() & flags::DUPLICATE_HARDLINK,
+        flags::DUPLICATE_HARDLINK,
+        "second name flagged DUPLICATE_HARDLINK"
+    );
+    assert_eq!(tree.node(dup).agg_logical(), 0, "duplicate contributes no size");
+}
+
+#[test]
 fn long_paths_scan_ok() {
     let fx = Fixture::empty("longpath");
     let deep = fx.deep();

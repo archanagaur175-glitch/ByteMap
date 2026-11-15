@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::os::windows::fs::MetadataExt;
 use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
 use bytemap_core::tree::{flags, NodeId, Tree};
@@ -26,8 +26,10 @@ struct EntryInfo {
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct ScanOptions {
-    /// Deduplicate hardlinks by file ID (Phase 1 option, benchmarked in P1.T3b).
-    /// Not implemented yet; reserved so the API does not change later.
+    /// Deduplicate hardlinks by file ID. When set, the second and later
+    /// names of a hardlinked file are flagged `DUPLICATE_HARDLINK` and
+    /// contribute no size. Costs one handle-open per file (benchmarked in
+    /// P1.T3b); default is decided by the owner.
     pub hardlink_dedup: bool,
 }
 
@@ -57,6 +59,11 @@ pub fn scan_folder(root: &Path, tree: &mut Tree, options: &ScanOptions) -> Resul
     let cluster = m::cluster_size(&canonical);
     let denied = Arc::new(AtomicU64::new(0));
     let denied_cb = Arc::clone(&denied);
+    // Hardlink dedup state, shared across rayon threads (only touched when
+    // the option is on). Key: (volume serial, file index).
+    let seen_files: Arc<Mutex<HashMap<(u64, u64), ()>>> =
+        Arc::new(Mutex::new(HashMap::new()));    let dedup = options.hardlink_dedup;
+    let seen_files_cb = Arc::clone(&seen_files);
 
     let walk = WalkDirGeneric::<((), EntryInfo)>::new(&canonical)
         .skip_hidden(false) // a disk analyzer must see hidden/system files
@@ -78,7 +85,7 @@ pub fn scan_folder(root: &Path, tree: &mut Tree, options: &ScanOptions) -> Resul
                     }
                 };
                 let attrs = meta.file_attributes();
-                let (mut node_flags, is_dir) = m::classify(attrs);
+                let (node_flags, is_dir) = m::classify(attrs);
                 if attrs & m::FILE_ATTRIBUTE_REPARSE_POINT != 0 {
                     // Belt and braces: never descend into junctions/symlinks.
                     entry.read_children = None;
@@ -87,8 +94,24 @@ pub fn scan_folder(root: &Path, tree: &mut Tree, options: &ScanOptions) -> Resul
                 let logical = if is_dir { 0 } else { meta.len() };
                 let on_disk = if is_dir { 0 } else { m::size_on_disk(&path, logical, attrs, cluster) };
                 let mtime = meta.modified().map(m::filetime).unwrap_or(0);
-                if !is_dir && node_flags & flags::REPARSE == 0 {
-                    node_flags |= 0; // plain file; DUPLICATE_HARDLINK set in P1.T3b
+                if !is_dir && dedup && node_flags & flags::REPARSE == 0 {
+                    // Dedup costs one handle-open per file (P1.T3b).
+                    if let Some(id) = m::file_id(&path, attrs) {
+                        let mut seen = seen_files_cb.lock().unwrap();
+                        if seen.insert(id, ()).is_some() {
+                            drop(seen);
+                            // Later names of the same file: flag them and
+                            // contribute no size (counted once by file ID).
+                            entry.client_state = EntryInfo {
+                                is_dir,
+                                node_flags: node_flags | flags::DUPLICATE_HARDLINK,
+                                logical: 0,
+                                on_disk: 0,
+                                mtime,
+                            };
+                            return true;
+                        }
+                    }
                 }
                 entry.client_state = EntryInfo {
                     is_dir,

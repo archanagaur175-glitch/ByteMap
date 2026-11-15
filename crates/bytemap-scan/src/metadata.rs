@@ -14,7 +14,8 @@ use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use windows_sys::Win32::Storage::FileSystem::{
-    GetCompressedFileSizeW, GetDiskFreeSpaceW,
+    GetCompressedFileSizeW, GetDiskFreeSpaceW, FILE_SHARE_DELETE, FILE_SHARE_READ,
+    FILE_SHARE_WRITE,
 };
 
 pub const FILE_ATTRIBUTE_READONLY: u32 = 0x1;
@@ -95,6 +96,47 @@ pub fn filetime(t: SystemTime) -> i64 {
         }
         Err(_) => 0,
     }
+}
+
+/// NTFS file identity: (volume serial number, file index). Requires opening
+/// a handle per file, so callers must gate this behind an option (P1.T3b).
+/// Returns None for reparse points, placeholders, and any failure.
+pub fn file_id(path: &Path, attrs: u32) -> Option<(u64, u64)> {
+    use windows_sys::Win32::Foundation::{CloseHandle, INVALID_HANDLE_VALUE};
+    use windows_sys::Win32::Storage::FileSystem::{
+        CreateFileW, GetFileInformationByHandle, FILE_FLAG_BACKUP_SEMANTICS,
+        FILE_READ_ATTRIBUTES, BY_HANDLE_FILE_INFORMATION,
+    };
+
+    if attrs & FILE_ATTRIBUTE_REPARSE_POINT != 0
+        || attrs & (FILE_ATTRIBUTE_RECALL_ON_OPEN | FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS) != 0
+    {
+        return None;
+    }
+    let w = wide(path);
+    let handle = unsafe {
+        CreateFileW(
+            w.as_ptr(),
+            FILE_READ_ATTRIBUTES,
+            // Share everything: we only peek at attributes.
+            FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+            std::ptr::null(),
+            3, // OPEN_EXISTING
+            FILE_FLAG_BACKUP_SEMANTICS,
+            std::ptr::null_mut(),
+        )
+    };
+    if handle == INVALID_HANDLE_VALUE {
+        return None;
+    }
+    let mut info: BY_HANDLE_FILE_INFORMATION = unsafe { std::mem::zeroed() };
+    let ok = unsafe { GetFileInformationByHandle(handle, &mut info) };
+    unsafe { CloseHandle(handle) };
+    if ok == 0 {
+        return None;
+    }
+    let index = ((info.nFileIndexHigh as u64) << 32) | info.nFileIndexLow as u64;
+    Some((info.dwVolumeSerialNumber as u64, index))
 }
 
 /// Map raw Windows attributes to ByteMap node flags.

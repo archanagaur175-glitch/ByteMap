@@ -46,9 +46,9 @@ fn build_if_missing(root: &Path) -> std::io::Result<()> {
     Ok(())
 }
 
-fn run_once(root: &Path, label: &str) -> Result<(), bytemap_scan::ScanError> {
+fn run_once(root: &Path, label: &str, dedup: bool) -> Result<(), bytemap_scan::ScanError> {
     let mut tree = Tree::new();
-    let stats: ScanStats = scan_folder(root, &mut tree, &ScanOptions::default())?;
+    let stats = scan_folder(root, &mut tree, &ScanOptions { hardlink_dedup: dedup })?;
     let entries = tree.len() as u64;
     let per_sec = if stats.elapsed_ms > 0 {
         entries * 1000 / stats.elapsed_ms as u64
@@ -68,11 +68,15 @@ fn main() {
         eprintln!("fixture build failed: {e}");
         std::process::exit(1);
     }
-    if let Err(e) = run_once(&root, "cold ") {
+    if let Err(e) = run_once(&root, "cold ", false) {
         eprintln!("scan failed: {e}");
         std::process::exit(1);
     }
-    if let Err(e) = run_once(&root, "warm ") {
+    if let Err(e) = run_once(&root, "warm ", false) {
+        eprintln!("scan failed: {e}");
+        std::process::exit(1);
+    }
+    if let Err(e) = run_once(&root, "dedup", true) {
         eprintln!("scan failed: {e}");
         std::process::exit(1);
     }
