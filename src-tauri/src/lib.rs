@@ -15,6 +15,7 @@ pub fn run() {
             commands::cancel_scan,
             commands::node_view,
             commands::node_orbit,
+            commands::bench_report,
         ])
         .run(tauri::generate_context!())
         .expect("error while running ByteMap");

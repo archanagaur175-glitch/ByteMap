@@ -19,8 +19,11 @@ skip, 4000-arc cap, packed LE via node_orbit command), Canvas2DRenderer behind a
 with hit-test, OrbitView component wired into store/App (openNode fetches view+orbit in parallel),
 320ms ease-out drill motion (instant under prefers-reduced-motion), Inspector panel with text flag
 badges. src/orbitView.ts was renamed src/orbit.ts (Windows case-insensitive collision with
-OrbitView.tsx broke tsc). P3.T5 perf bench BUILT (src/perf.ts synthetic 4000-arc rotating scene,
-#orbit-bench URL mode, ORBIT-BENCH console line) — awaiting owner-run measurement to close Phase 3.
+OrbitView.tsx broke tsc). P3.T5 perf gate MEASURED on real hardware: the agent ran `npx tauri dev`
+with VITE_BENCH=orbit (app auto-opens into bench mode) and captured the result through the new
+bench_report command printing to dev-process stdout: ORBIT-BENCH arcs=4000 frames=776 avgMs=7.78
+p95Ms=13.90 avgFps=128.6 -> the brief's "60 fps at <=4000 primitives" gate PASSED. Phase 3 COMPLETE.
+Next phase NOT started; awaiting owner "APPROVED: Phase 4" (Categorization and safety tiers).
 Two owner items still pending: dedup default choice, P1.T7 MFT spike approval.
 
 Environment facts: rustc/cargo 1.97.1 pinned via rust-toolchain.toml (clippy + rustfmt components);

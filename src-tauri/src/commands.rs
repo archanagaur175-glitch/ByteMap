@@ -164,6 +164,13 @@ pub fn cancel_scan(session: State<'_, SharedSession>) {
         .store(true, Ordering::Relaxed);
 }
 
+/// Owner/agent-visible perf report: prints the bench result line to the
+/// dev process stdout (visible in the terminal running `tauri dev`).
+#[tauri::command]
+pub fn bench_report(line: String) {
+    println!("{line}");
+}
+
 /// Binary view: ancestor chain (breadcrumb) + top-N children by size with
 /// the remainder folded into one "N small items" entry. Travels as packed
 /// little-endian bytes via tauri::ipc::Response (PROJECT_BRIEF rule).

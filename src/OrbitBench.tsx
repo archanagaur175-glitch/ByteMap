@@ -3,6 +3,7 @@
 // then prints one result line to the console and on screen.
 
 import { useEffect, useRef, useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import { Canvas2DRenderer } from "./renderer";
 import { runOrbitBench } from "./perf";
 import type { BenchResult } from "./perf";
@@ -24,9 +25,10 @@ export function OrbitBench() {
     const cancel = runOrbitBench(renderer, ARC_COUNT, BENCH_SECONDS, (r) => {
       setResult(r);
       // One grep-able line for the session log.
-      console.log(
-        `ORBIT-BENCH arcs=${ARC_COUNT} frames=${r.frames} avgMs=${r.avgMs.toFixed(2)} p95Ms=${r.p95Ms.toFixed(2)} avgFps=${r.avgFps.toFixed(1)}`,
-      );
+      const line = `ORBIT-BENCH arcs=${ARC_COUNT} frames=${r.frames} avgMs=${r.avgMs.toFixed(2)} p95Ms=${r.p95Ms.toFixed(2)} avgFps=${r.avgFps.toFixed(1)}`;
+      console.log(line);
+      // Also to the dev-process stdout (captured by the agent harness).
+      void invoke("bench_report", { line }).catch(() => {});
     }, setFps);
     return () => {
       cancel();

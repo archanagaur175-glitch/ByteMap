@@ -38,7 +38,8 @@ Result: 100k fixture (101,112 entries incl. marker): cold 1.407 s / 71.9k entrie
 - [x] P3.T2b | OrbitView canvas component (hover/click hit-test) wired to store (openNode now loads orbit too); orbitView.ts renamed orbit.ts (Windows case-insensitive collision with OrbitView.tsx) | src/OrbitView.tsx, src/store.ts, src/App.tsx, src/styles.css | npm run build && npx vitest run
 - [x] P3.T3 | Drill: click arc re-centers via openNode; 320ms ease-out zoom drill motion, instant under prefers-reduced-motion; breadcrumb navigation (from P2) | src/renderer.ts (zoom/alpha), src/OrbitView.tsx (rAF) | npm run build
 - [x] P3.T4 | Inspector panel: name, logical/on-disk, ring, flag badges (text, never color-only) | src/Inspector.tsx, src/OrbitView.tsx, src/styles.css | npm run build
-- [ ] P3.T5 | Perf gate: BUILT (synthetic 4000-arc rotating bench, rAF frame-time HUD, #orbit-bench URL mode) — AWAITING OWNER RUN: `npm run tauri dev`, open `#orbit-bench`, paste the ORBIT-BENCH console line back | src/perf.ts, src/OrbitBench.tsx, src/benchConfig.ts, src/App.tsx | owner-run bench, output recorded in SESSION_LOG.md
+- [x] P3.T5 | Perf gate: MEASURED on real hardware via agent-run `npx tauri dev` with VITE_BENCH=orbit + bench_report stdout capture: ORBIT-BENCH arcs=4000 frames=776 avgMs=7.78 p95Ms=13.90 avgFps=128.6 (gate 60fps @ <=4000 primitives: passed) | src/perf.ts, src/OrbitBench.tsx, src/benchConfig.ts, src/main.tsx; src-tauri bench_report command | bench output recorded in SESSION_LOG.md
+- [x] P3.GATE | Full check green; memory files updated; commit + push; summary; ask APPROVED: Phase 4 | docs/agent/* | scripts/check.ps1 exit 0
 
 ## Phase 4 — Categorization and safety tiers (detail pending approval)
 - [ ] P4.T1 embedded TOML rule engine | [ ] P4.T2 tiers + badges | [ ] P4.T3 legend + filters | [ ] P4.T4 Protected-never-deletable gate

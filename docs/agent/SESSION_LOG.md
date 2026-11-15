@@ -46,5 +46,10 @@
 - 2026-11-15 | P3.T4 | Inspector.tsx (name, logical/on-disk/ring rows, text flag badges incl. junction/cloud-placeholder/duplicate-hardlink) fed by hovered arc; .orbit-row layout (canvas + 230px panel). Check: build + vitest 9/9. Commit b582721 + push.
 - 2026-11-15 | P3.T5 | Perf bench built: src/perf.ts (syntheticOrbit deterministic xorshift recursive split; runOrbitBench rotates the scene 1 turn/12s, rAF frame times, avg/p95/fps result), src/OrbitBench.tsx (HUD + ORBIT-BENCH console line), benchConfig.ts (4000 arcs, 6 s), App routes #orbit-bench. Check: build + vitest 9/9.
   Gate: run 1 FAILED fmt (orbit.rs) -> cargo fmt --all; run 2: ALL CHECKS PASSED (31 Rust tests: 1 throttle + 1 flow + 1 actions + 16 core + 3 scan-meta + 9 walker; vitest 2 files/9 tests). T5 measurement = owner-run, pending; Phase 3 close deferred until the ORBIT-BENCH line is recorded.
+- 2026-11-15 | P3.T5 measured | Owner asked the agent to run the bench. Added commands::bench_report(line) -> println! to stdout (visible in the tauri dev terminal), main.tsx auto-bench via VITE_BENCH=orbit env or #orbit-bench hash, OrbitBench invokes bench_report on completion. First attempt FAILED: "npm error Missing script: tauri" — AGENTS.md's `npm run tauri dev` has no package.json script; correct command is `npx tauri dev` (note for future sessions).
+  Command: $env:VITE_BENCH="orbit"; npx tauri dev (background, stdout -> %LOCALAPPDATA%\Temp\opencode\bytemap-bench-dev.log), window auto-opened into bench mode.
+  Result line: ORBIT-BENCH arcs=4000 frames=776 avgMs=7.78 p95Ms=13.90 avgFps=128.6
+  Verdict: brief gate "60 fps with at most 4,000 drawn primitives" PASSED with margin (p95 13.9 ms ~= 72 fps). Dev process then killed (taskkill /T). Numbers recorded here and in STATUS/ROADMAP; DECISIONS.md notes the agent-run measurement method.
+- 2026-11-15 | P3.GATE | Phase 3 COMPLETE: T1..T5 done, gate green, memory files updated. Commit + push; ask APPROVED: Phase 4.
 
 
