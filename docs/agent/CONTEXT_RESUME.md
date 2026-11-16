@@ -23,8 +23,16 @@ OrbitView.tsx broke tsc). P3.T5 perf gate MEASURED on real hardware: the agent r
 with VITE_BENCH=orbit (app auto-opens into bench mode) and captured the result through the new
 bench_report command printing to dev-process stdout: ORBIT-BENCH arcs=4000 frames=776 avgMs=7.78
 p95Ms=13.90 avgFps=128.6 -> the brief's "60 fps at <=4000 primitives" gate PASSED. Phase 3 COMPLETE.
-Next phase NOT started; awaiting owner "APPROVED: Phase 4" (Categorization and safety tiers).
-Two owner items still pending: dedup default choice, P1.T7 MFT spike approval.
+Phase 4 COMPLETE (2026-11-16): embedded TOML rule engine (toml 1.2.1, owner-approved dep) in
+bytemap-core::categorizer — path rules, then ext rules, then size heuristics; protected names
+(pagefile.sys, hiberfil.sys, swapfile.sys, Windows, System Volume Information, $Recycle.Bin) force
+tier PROTECTED. Wire formats v2 (u8 cat + u8 tier per item/arc); view/orbit version = 2 everywhere.
+Frontend: colors.ts (brief tokens), Legend with category+tier filter chips, orbit arcs colored by
+category, filtered items dimmed, inspector shows category + tier pill. bytemap-actions now has the
+fail-closed can_offer_delete(tier) gate (only Safe/Review; unknown ids refused) — every Phase 5
+action path must call it first. 35 Rust tests + 10 vitest green.
+Next phase NOT started; awaiting owner "APPROVED: Phase 5" (Action Hub; owner code review required
+before phase close per rule 7). Two owner items still pending: dedup default choice, P1.T7 MFT spike.
 
 Environment facts: rustc/cargo 1.97.1 pinned via rust-toolchain.toml (clippy + rustfmt components);
 node 22.22.3 / npm 10.9.8; Tauri CLI comes from npm @tauri-apps/cli (no global install);

@@ -41,8 +41,14 @@ Result: 100k fixture (101,112 entries incl. marker): cold 1.407 s / 71.9k entrie
 - [x] P3.T5 | Perf gate: MEASURED on real hardware via agent-run `npx tauri dev` with VITE_BENCH=orbit + bench_report stdout capture: ORBIT-BENCH arcs=4000 frames=776 avgMs=7.78 p95Ms=13.90 avgFps=128.6 (gate 60fps @ <=4000 primitives: passed) | src/perf.ts, src/OrbitBench.tsx, src/benchConfig.ts, src/main.tsx; src-tauri bench_report command | bench output recorded in SESSION_LOG.md
 - [x] P3.GATE | Full check green; memory files updated; commit + push; summary; ask APPROVED: Phase 4 | docs/agent/* | scripts/check.ps1 exit 0
 
-## Phase 4 — Categorization and safety tiers (detail pending approval)
-- [ ] P4.T1 embedded TOML rule engine | [ ] P4.T2 tiers + badges | [ ] P4.T3 legend + filters | [ ] P4.T4 Protected-never-deletable gate
+## Phase 4 — Categorization and safety tiers (APPROVED 2026-11-15)
+- [x] P4.T1 | TOML rule engine in bytemap-core (categorizer.rs): path rules, then ext rules, then size heuristics; embedded rules.toml via include_str!; categories Code/System/Archives/Media/Documents/Apps/Other; toml 1.2.1 added (owner-approved dep) | categorizer.rs + rules.toml + tests | cargo test -p bytemap-core (6 new tests)
+- [x] P4.T2a | Wire formats v2 (u8 cat + u8 tier per item/arc); session stores CategoryMap, computed once per completed scan; flow test decodes v2 | bytemap-core view.rs/orbit.rs; src-tauri state.rs, commands.rs, view.rs, tests/flow.rs | cargo test --workspace (35 tests) && clippy -D warnings
+- [x] P4.T2b | Frontend parsers v2 + CAT_*/TIER_* ids; vitest 10/10 | src/parseView.ts, src/orbit.ts, both test files, src/perf.ts | npx vitest run && npm run build
+- [x] P4.T3a | Legend: category chips (brief colors) + tier chips, click toggles filter | src/colors.ts, src/Legend.tsx, src/store.ts, src/styles.css, src/App.tsx | npm run build
+- [x] P4.T3b | Orbit arcs colored by category; filtered items dimmed in orbit + list rows | src/renderer.ts, src/OrbitView.tsx, src/TreeList.tsx, src/styles.css | npm run build && npx vitest run
+- [x] P4.T4 | Protected gate: fail-closed can_offer_delete(tier) in bytemap-actions (only Safe/Review; unknown ids refused) + 4 tests; inspector shows category + tier pill (text + color) | crates/bytemap-actions/src/lib.rs, src/Inspector.tsx, src/styles.css | cargo test --workspace && npm run build
+- [x] P4.GATE | Full check green (after cargo fmt); memory files updated; commit + push; summary; ask APPROVED: Phase 5 | docs/agent/* | scripts/check.ps1 GATE_EXIT=0
 
 ## Phase 5 — Action Hub (detail pending approval; owner code review before close)
 - [ ] P5.T1 basket | [ ] P5.T2 dry run + Restart Manager | [ ] P5.T3 recycle + stale-scan guard | [ ] P5.T4 undo journal | [ ] P5.T5 archive mode
