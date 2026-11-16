@@ -15,8 +15,14 @@ use bytemap_scan::ScanOptions;
 use serde_json::Value;
 use tauri::ipc::{Channel, InvokeResponseBody};
 
+/// jwalk uses rayon's global pool: two concurrent scans in one process make
+/// rayon abort with "dependency loop detected". The real app never scans
+/// concurrently (start_scan guards with Session.running), so tests serialize.
+static SCAN_LOCK: Mutex<()> = Mutex::new(());
+
 #[test]
 fn full_flow_scan_progress_complete_view() {
+    let _scan_guard = SCAN_LOCK.lock().unwrap();
     let root = std::env::temp_dir().join("bytemap-bench-100k");
     if !root.is_dir() {
         eprintln!(
@@ -105,6 +111,102 @@ fn full_flow_scan_progress_complete_view() {
         d.str(); // name
     }
     assert!(d.at_end(), "view buffer fully consumed");
+}
+
+/// Basket flow on a self-created %TEMP% fixture (never real user folders):
+/// scan -> bulk add with the Documents default exclusion -> duplicate
+/// refused -> basket_list contents. Exercises pathres + Session.cats too.
+#[test]
+fn basket_flow_on_temp_fixture() {
+    let _scan_guard = SCAN_LOCK.lock().unwrap();
+    use bytemap_core::children_by_size;
+    use bytemap_core::tree::flags;
+    use bytemap_lib::commands::basket_add_ids;
+
+    let dir = std::env::temp_dir().join("bytemap-flow-basket");
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(dir.join("note.txt"), b"hello basket").unwrap();
+    std::fs::write(dir.join("big.dat"), vec![0u8; 4096]).unwrap();
+
+    let shared: SharedSession = Arc::new(Mutex::new(bytemap_lib::state::Session::default()));
+    let messages: Arc<Mutex<Vec<InvokeResponseBody>>> = Arc::new(Mutex::new(Vec::new()));
+    let collector = Arc::clone(&messages);
+    let channel = Channel::new(move |body: InvokeResponseBody| {
+        collector.lock().unwrap().push(body);
+        Ok(())
+    });
+    let options = ScanOptions::default();
+    run_scan_job(dir.clone(), options, Arc::clone(&shared), channel);
+
+    // Loud structural check: the scan must complete (an error event leaves
+    // the tree empty and every later step meaningless).
+    {
+        let raw = messages.lock().unwrap();
+        let last = raw.last().expect("at least one channel event");
+        let s = match last {
+            InvokeResponseBody::Json(s) => s,
+            InvokeResponseBody::Raw(_) => panic!("unexpected raw channel message"),
+        };
+        let v: Value = serde_json::from_str(s).unwrap();
+        assert_eq!(v["type"], "complete", "scan must complete, got: {v}");
+    }
+
+    // Two file children under the root (flat fixture; jwalk strict DFS).
+    let (file_ids, names): (Vec<u32>, Vec<String>) = {
+        let s = shared.lock().unwrap();
+        assert!(!s.root_path.as_os_str().is_empty(), "root_path anchored");
+        let root = s.tree.root().unwrap();
+        let mut ids = Vec::new();
+        let mut names = Vec::new();
+        for id in children_by_size(&s.tree, root) {
+            if s.tree.node(id).flags() & flags::DIR == 0 {
+                names.push(s.tree.name(id).to_string());
+                ids.push(id);
+            }
+        }
+        (ids, names)
+    };
+    assert_eq!(file_ids.len(), 2, "fixture has exactly two files: {names:?}");
+
+    // Bulk add with the Documents default: note.txt (documents) refused,
+    // big.dat (other -> review) added.
+    let rep = basket_add_ids(&shared, &file_ids, false);
+    assert_eq!(rep["count"], 1, "rep: {rep}");
+    assert_eq!(rep["refused"].as_array().unwrap().len(), 1);
+    assert_eq!(
+        rep["refused"][0]["reason"],
+        "documents-default-excluded",
+        "rep: {rep}"
+    );
+
+    // Single add is not bulk: documents are allowed.
+    let note_idx = names
+        .iter()
+        .position(|n| n == "note.txt")
+        .expect("note.txt present");
+    let rep = basket_add_ids(&shared, &[file_ids[note_idx]], false);
+    assert_eq!(rep["added"].as_array().unwrap().len(), 1, "rep: {rep}");
+
+    // Duplicate add of the same id is refused.
+    let rep = basket_add_ids(&shared, &[file_ids[note_idx]], false);
+    assert_eq!(rep["refused"][0]["reason"], "duplicate", "rep: {rep}");
+
+    // include_documents=true lets the bulk add take note.txt too; big.dat
+    // is already staged -> duplicate. note.txt path resolves under the root.
+    let rep = basket_add_ids(&shared, &file_ids, true);
+    assert_eq!(rep["count"], 2, "rep: {rep}");
+
+    let s = shared.lock().unwrap();
+    let items = s.basket.items();
+    assert!(
+        items.iter().any(|i| i.path.ends_with("note.txt")),
+        "resolved path snapshot: {:?}",
+        items.iter().map(|i| &i.path).collect::<Vec<_>>()
+    );
+    drop(s);
+
+    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// Minimal little-endian reader for the bytemap-core view format.
