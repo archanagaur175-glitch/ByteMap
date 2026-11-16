@@ -10,6 +10,7 @@ import {
   FLAG_PLACEHOLDER,
   FLAG_DUPLICATE_HARDLINK,
 } from "./parseView";
+import { CATEGORY_NAMES, TIER_NAMES, TIER_COLORS } from "./colors";
 
 export function Inspector(props: { arc: OrbitArc | null }) {
   const arc = props.arc;
@@ -29,6 +30,21 @@ export function Inspector(props: { arc: OrbitArc | null }) {
           <div className="inspector-row">
             <span>on disk</span>
             <span className="mono">{formatBytes(arc.onDisk)}</span>
+          </div>
+          <div className="inspector-row">
+            <span>category</span>
+            <span className="mono">{CATEGORY_NAMES[arc.cat] ?? "Other"}</span>
+          </div>
+          <div className="inspector-row">
+            <span>safety tier</span>
+            <span className="tier-pill" style={{ borderColor: TIER_COLORS[arc.tier] }}>
+              <span
+                className="swatch"
+                style={{ background: TIER_COLORS[arc.tier] }}
+                aria-hidden="true"
+              />
+              {TIER_NAMES[arc.tier] ?? "Review"}
+            </span>
           </div>
           <div className="inspector-row">
             <span>ring</span>

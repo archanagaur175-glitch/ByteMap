@@ -189,6 +189,17 @@ body {
   color: #ffc857;
 }
 
+.tier-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 1px 8px;
+  border: 1px solid;
+  border-radius: 9px;
+  color: var(--text);
+  font-size: 11px;
+}
+
 .tree-row {
   position: absolute;
   left: 0;
