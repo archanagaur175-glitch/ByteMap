@@ -8,6 +8,12 @@ repository.workspace = true
 authors.workspace = true
 
 [dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+# Recycle Bin (owner-approved 2026-11-16, brief approved list; verified
+# latest 5.3.0, MIT, MSRV 1.87).
+trash = "5.3"
+
 # Restart Manager probe (file-in-use status for the dry run) — same
 # windows-sys version as bytemap-scan for a single lockfile resolution.
 [target.'cfg(windows)'.dependencies]

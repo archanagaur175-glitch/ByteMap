@@ -12,9 +12,13 @@ pub mod basket;
 pub mod dryrun;
 #[cfg(windows)]
 pub mod inuse;
+pub mod journal;
+pub mod recycle;
 
 pub use basket::{AddError, Basket, BasketItem};
 pub use dryrun::{dry_run, DryRunEntry, StaleStatus};
+pub use journal::{Journal, JournalEntry, JournalItem};
+pub use recycle::{permanent_delete_items, recycle_items, ActionOutcome, PERMANENT_CONFIRMATION};
 
 /// Placeholder version marker; replaced by action code in Phase 5.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

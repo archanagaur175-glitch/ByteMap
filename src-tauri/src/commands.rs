@@ -9,7 +9,12 @@ use serde_json::{json, Value};
 use tauri::ipc::{Channel, InvokeResponseBody};
 use tauri::State;
 
-use bytemap_actions::{AddError, BasketItem};
+use bytemap_actions::dry_run;
+#[cfg(windows)]
+use bytemap_actions::inuse;
+use bytemap_actions::journal::{Journal, JournalEntry, JournalItem};
+use bytemap_actions::recycle::{permanent_delete_items, recycle_items, ActionOutcome};
+use bytemap_actions::{AddError, BasketItem, StaleStatus};
 use bytemap_core::categorizer::category;
 use bytemap_scan::{scan_folder, ScanError, ScanOptions, ScanProgress};
 
@@ -47,6 +52,12 @@ impl Throttle {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Arc;
+    use std::sync::Mutex;
+
+    fn temp_dir() -> std::path::PathBuf {
+        std::env::temp_dir()
+    }
 
     #[test]
     fn throttle_limits_to_20_per_second() {
@@ -62,6 +73,81 @@ mod tests {
         assert!(!t.ready(base + Duration::from_millis(99)));
         assert!(t.ready(base + Duration::from_millis(100)));
         // 3 emissions in 100ms window => max 20/s respected.
+    }
+
+    /// Full execute path on a real fixture: basket -> dry run (one item
+    /// dropped as changed) -> recycle -> journal -> basket cleared.
+    /// Writes one small file to the Recycle Bin (harmless, fixture only).
+    #[test]
+    fn execute_recycle_drops_changed_and_journals() {
+        // Isolate the undo journal for this test run.
+        std::env::set_var("BYTEMAP_UNDO_DIR", temp_dir().join("bytemap-exec-journal"));
+
+        let dir = temp_dir().join("bytemap-exec-fixture");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let gone = dir.join("gone.dat");
+        let stay = dir.join("stay.dat");
+        std::fs::write(&gone, vec![0u8; 10]).unwrap();
+        std::fs::write(&stay, vec![0u8; 10]).unwrap();
+
+        let shared: SharedSession = Arc::new(Mutex::new(crate::state::Session::default()));
+        {
+            let mut s = shared.lock().unwrap();
+            s.root_path = dir.clone();
+            for (id, p, mtime) in [
+                (1u32, gone.clone(), real_mtime(&gone)),
+                (2, stay.clone(), 0), // stale mtime -> must be dropped
+            ] {
+                s.basket
+                    .add(BasketItem {
+                        node_id: id,
+                        path: p.to_string_lossy().into_owned(),
+                        name: p.file_name().unwrap().to_string_lossy().into_owned(),
+                        logical: 10,
+                        on_disk: 10,
+                        mtime,
+                        tier: 0, // SAFE
+                        cat: 6,
+                    })
+                    .unwrap();
+            }
+        }
+
+        let report = execute_action_core(&shared, "recycle", None);
+        assert_eq!(
+            report["executed"].as_array().unwrap().len(),
+            1,
+            "report: {report}"
+        );
+        assert_eq!(report["dropped"].as_array().unwrap().len(), 1);
+        assert_eq!(
+            report["dropped"][0]["reason"], "changed",
+            "report: {report}"
+        );
+        assert!(report["journaled"].as_bool().unwrap());
+        assert!(!gone.exists(), "recycled -> original gone");
+        assert!(stay.exists(), "changed item must NOT be touched");
+
+        // Basket: executed item left, dropped item stays for the UI to show.
+        let s = shared.lock().unwrap();
+        assert_eq!(s.basket.len(), 1);
+        assert_eq!(s.basket.items()[0].node_id, 2);
+        drop(s);
+
+        // Journal recorded the recycle.
+        let j = Journal::open().unwrap();
+        let last = j.last().unwrap().expect("journal line");
+        assert_eq!(last.action, "recycle");
+        assert_eq!(last.items[0].path, gone.to_string_lossy());
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    fn real_mtime(p: &std::path::Path) -> i64 {
+        let modified = std::fs::metadata(p).ok().and_then(|md| md.modified().ok());
+        bytemap_actions::dryrun::system_time_to_filetime(&modified)
+            .expect("fixture file has an mtime")
     }
 }
 
@@ -325,4 +411,121 @@ pub fn basket_list(session: State<'_, SharedSession>) -> Value {
         })
         .collect();
     json!({ "items": items, "count": items.len() })
+}
+
+// --- Action Hub: execute (Phase 5) ---
+
+/// Real Restart Manager probe for production use: a probe failure is
+/// surfaced as (false, Some(error)) — never silently treated as "free".
+#[cfg(windows)]
+fn rm_probe(p: &str) -> (bool, Option<String>) {
+    match inuse::file_in_use(p) {
+        Ok(b) => (b, None),
+        Err(e) => (false, Some(e)),
+    }
+}
+
+/// Non-Windows fallback (not a product target): probe unavailable.
+#[cfg(not(windows))]
+fn rm_probe(_p: &str) -> (bool, Option<String>) {
+    (false, Some("in-use probe unavailable".to_string()))
+}
+
+/// Testable execution core: dry run -> drop changed/missing -> tier gate ->
+/// execute -> append-only journal -> clear executed items from the basket.
+/// `mode` is "recycle" (default) or "permanent" (requires the exact typed
+/// confirmation string; recycle.rs enforces it again).
+pub fn execute_action_core(
+    shared: &SharedSession,
+    mode: &str,
+    confirmation: Option<&str>,
+) -> Value {
+    let mut s = shared.lock().unwrap();
+    if !matches!(mode, "recycle" | "permanent") {
+        return json!({ "error": format!("unknown mode {mode}") });
+    }
+    let items: Vec<BasketItem> = s.basket.items().to_vec();
+    if items.is_empty() {
+        return json!({ "executed": [], "dropped": [], "failed": [], "count": 0 });
+    }
+
+    // 1. stale-scan guard: re-check size + mtime; drop non-Ok items.
+    let entries = dry_run(&items, &rm_probe);
+    let mut live: Vec<BasketItem> = Vec::new();
+    let mut dropped: Vec<Value> = Vec::new();
+    for (entry, item) in entries.into_iter().zip(&items) {
+        match entry.status {
+            StaleStatus::Ok => live.push(item.clone()),
+            StaleStatus::Changed => dropped.push(json!({
+                "nodeId": item.node_id, "path": item.path, "reason": "changed"
+            })),
+            StaleStatus::Missing => dropped.push(json!({
+                "nodeId": item.node_id, "path": item.path, "reason": "missing"
+            })),
+        }
+    }
+
+    // 2. execute (recycle.rs re-gates tiers per item).
+    let outcomes = match mode {
+        "recycle" => recycle_items(&live),
+        _ => permanent_delete_items(&live, confirmation),
+    };
+
+    // 3. append-only journal for what actually happened.
+    let mut journaled = false;
+    let ok: Vec<&ActionOutcome> = outcomes.iter().filter(|o| o.ok).collect();
+    if !ok.is_empty() {
+        if let Ok(journal) = Journal::open() {
+            let entry = JournalEntry {
+                ts_ms: now_ms(),
+                action: mode.to_string(),
+                items: ok
+                    .iter()
+                    .map(|o| JournalItem {
+                        path: o.path.clone(),
+                        kind: "file".to_string(), // refined by restore in T5
+                        logical: 0,
+                    })
+                    .collect(),
+            };
+            journaled = journal.append(&entry).is_ok();
+        }
+    }
+
+    // 4. executed items leave the basket.
+    for o in &outcomes {
+        if o.ok {
+            s.basket.remove(o.node_id);
+        }
+    }
+
+    let failed: Vec<Value> = outcomes
+        .iter()
+        .filter(|o| !o.ok)
+        .map(|o| json!({ "nodeId": o.node_id, "path": o.path, "error": o.error }))
+        .collect();
+    json!({
+        "executed": ok.iter().map(|o| json!({ "nodeId": o.node_id, "path": o.path })).collect::<Vec<_>>(),
+        "dropped": dropped,
+        "failed": failed,
+        "journaled": journaled,
+        "count": s.basket.len(),
+    })
+}
+
+fn now_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0)
+}
+
+#[tauri::command]
+pub fn execute_recycle(session: State<'_, SharedSession>) -> Value {
+    execute_action_core(session.inner(), "recycle", None)
+}
+
+#[tauri::command]
+pub fn execute_permanent(confirmation: String, session: State<'_, SharedSession>) -> Value {
+    execute_action_core(session.inner(), "permanent", Some(&confirmation))
 }

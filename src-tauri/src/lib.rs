@@ -21,6 +21,8 @@ pub fn run() {
             commands::basket_remove,
             commands::basket_clear,
             commands::basket_list,
+            commands::execute_recycle,
+            commands::execute_permanent,
         ])
         .run(tauri::generate_context!())
         .expect("error while running ByteMap");
