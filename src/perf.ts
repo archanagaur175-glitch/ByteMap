@@ -45,6 +45,8 @@ export function syntheticOrbit(arcCount: number, rings: number, seed = 0x9e3779b
         logical: Math.round(1e9 * w),
         onDisk: Math.round(1e9 * w),
         flags: depth < rings ? 1 : 0,
+        cat: 6,
+        tier: 1,
         name: `bench-${id}`,
       });
       if (depth < rings && s > 0.004) split(cursor, s, depth + 1);

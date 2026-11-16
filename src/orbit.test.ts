@@ -9,10 +9,11 @@ function encode(o: {
   centerLogical: number;
   centerOnDisk: number;
   rings: number;
-  arcs: Array<{ id: number; depth: number; start: number; sweep: number; logical: number; onDisk: number; flags: number; name: string }>;
+  arcs: Array<{ id: number; depth: number; start: number; sweep: number; logical: number; onDisk: number; flags: number; cat: number; tier: number; name: string }>;
 }): ArrayBuffer {
   const chunks: number[] = [];
   const u16 = (v: number) => chunks.push(v & 0xff, (v >> 8) & 0xff);
+  const u8 = (v: number) => chunks.push(v & 0xff);
   const u32 = (v: number) =>
     chunks.push(v & 0xff, (v >> 8) & 0xff, (v >> 16) & 0xff, (v >>> 24) & 0xff);
   const u64 = (v: number) => {
@@ -38,6 +39,8 @@ function encode(o: {
     u64(a.logical);
     u64(a.onDisk);
     u16(a.flags);
+    u8(a.cat);
+    u8(a.tier);
     str(a.name);
   }
   return Uint8Array.from(chunks).buffer;
@@ -49,9 +52,9 @@ const sample: Orbit = {
   centerOnDisk: 1000,
   rings: 2,
   arcs: [
-    { id: 2, depth: 1, start: 0, sweep: 0.5, logical: 500, onDisk: 500, flags: 1, name: "a" },
-    { id: 3, depth: 1, start: 0.5, sweep: 0.3, logical: 300, onDisk: 300, flags: 1, name: "b" },
-    { id: 4, depth: 2, start: 0.25, sweep: 0.25, logical: 250, onDisk: 250, flags: 0, name: "a1" },
+    { id: 2, depth: 1, start: 0, sweep: 0.5, logical: 500, onDisk: 500, flags: 1, cat: 0, tier: 0, name: "a" },
+    { id: 3, depth: 1, start: 0.5, sweep: 0.3, logical: 300, onDisk: 300, flags: 1, cat: 5, tier: 1, name: "b" },
+    { id: 4, depth: 2, start: 0.25, sweep: 0.25, logical: 250, onDisk: 250, flags: 0, cat: 3, tier: 2, name: "a1" },
   ],
 };
 
@@ -69,6 +72,9 @@ describe("parseOrbit", () => {
       sweep: 0.5,
       name: "a",
     });
+    // v2 fields survive the round trip.
+    expect(orbit.arcs[1].cat).toBe(5);
+    expect(orbit.arcs[2].tier).toBe(2);
   });
 
   it("rejects unknown versions", () => {
@@ -100,7 +106,7 @@ describe("hitTest", () => {
   it("handles arcs that wrap past turn 1", () => {
     const wrapped: Orbit = {
       ...sample,
-      arcs: [{ id: 9, depth: 1, start: 0.9, sweep: 0.2, logical: 1, onDisk: 1, flags: 0, name: "wrap" }],
+      arcs: [{ id: 9, depth: 1, start: 0.9, sweep: 0.2, logical: 1, onDisk: 1, flags: 0, cat: 6, tier: 1, name: "wrap" }],
     };
     // 0.95 turn (inside the wrapped part).
     const p = (t: number) => [100 + 25 * Math.cos(t * 2 * Math.PI), 100 + 25 * Math.sin(t * 2 * Math.PI)];

@@ -13,9 +13,23 @@
 // Angles travel as fixed point (65536 = one full turn) and are converted
 // to turns (0..1 floats) here; the renderer turns them into radians.
 
-export const ORBIT_VERSION = 1;
+export const ORBIT_VERSION = 2;
 
 export const FLAG_DIR = 1;
+
+// Category ids (wire format v2; mirrors bytemap-core categorizer).
+export const CAT_CODE = 0;
+export const CAT_SYSTEM = 1;
+export const CAT_ARCHIVES = 2;
+export const CAT_MEDIA = 3;
+export const CAT_DOCUMENTS = 4;
+export const CAT_APPS = 5;
+export const CAT_OTHER = 6;
+
+// Safety tier ids (wire format v2).
+export const TIER_SAFE = 0;
+export const TIER_REVIEW = 1;
+export const TIER_PROTECTED = 2;
 
 export interface OrbitArc {
   id: number;
@@ -28,6 +42,10 @@ export interface OrbitArc {
   logical: number;
   onDisk: number;
   flags: number;
+  /** Category id (CAT_*); u8 from wire format v2. */
+  cat: number;
+  /** Safety tier id (TIER_*); u8 from wire format v2. */
+  tier: number;
   name: string;
 }
 
@@ -60,6 +78,12 @@ class Reader {
   u16(): number {
     const v = this.view.getUint16(this.pos, true);
     this.pos += 2;
+    return v;
+  }
+
+  u8(): number {
+    const v = this.view.getUint8(this.pos);
+    this.pos += 1;
     return v;
   }
 
@@ -106,8 +130,10 @@ export function parseOrbit(buf: ArrayBuffer): Orbit {
     const logical = r.u64();
     const onDisk = r.u64();
     const flags = r.u16();
+    const cat = r.u8();
+    const tier = r.u8();
     const name = r.str();
-    arcs.push({ id, depth, start, sweep, logical, onDisk, flags, name });
+    arcs.push({ id, depth, start, sweep, logical, onDisk, flags, cat, tier, name });
   }
   if (!r.atEnd()) {
     throw new Error("trailing bytes in orbit buffer");
