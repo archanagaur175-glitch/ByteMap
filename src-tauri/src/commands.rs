@@ -265,6 +265,7 @@ pub fn basket_add_ids(shared: &SharedSession, node_ids: &[u32], include_document
             name: s.tree.name(id).to_string(),
             logical: n.agg_logical(),
             on_disk: n.agg_on_disk(),
+            mtime: n.mtime(),
             tier,
             cat,
         };
@@ -287,7 +288,11 @@ pub fn basket_add(
     include_documents: Option<bool>,
     session: State<'_, SharedSession>,
 ) -> Value {
-    basket_add_ids(session.inner(), &node_ids, include_documents.unwrap_or(false))
+    basket_add_ids(
+        session.inner(),
+        &node_ids,
+        include_documents.unwrap_or(false),
+    )
 }
 
 #[tauri::command]

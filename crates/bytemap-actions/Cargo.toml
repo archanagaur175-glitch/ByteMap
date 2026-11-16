@@ -8,3 +8,10 @@ repository.workspace = true
 authors.workspace = true
 
 [dependencies]
+# Restart Manager probe (file-in-use status for the dry run) — same
+# windows-sys version as bytemap-scan for a single lockfile resolution.
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61.2", features = [
+    "Win32_Foundation",
+    "Win32_System_RestartManager",
+] }

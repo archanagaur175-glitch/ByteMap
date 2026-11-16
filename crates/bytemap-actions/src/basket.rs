@@ -15,10 +15,13 @@ pub struct BasketItem {
     pub path: String,
     /// File/folder name (last path component).
     pub name: String,
-    /// Logical size at scan time.
+    /// Logical size at scan time (roll-up for folders).
     pub logical: u64,
     /// Size on disk at scan time.
     pub on_disk: u64,
+    /// Last write time at scan time (Windows FILETIME, 100 ns since 1601).
+    /// The stale-scan guard compares this against the current mtime.
+    pub mtime: i64,
     /// Tier id (mirrored in [`crate::tier`]).
     pub tier: u8,
     /// Category id (0 Code .. 6 Other).
@@ -115,6 +118,7 @@ mod tests {
             name: format!("item{id}"),
             logical: 100,
             on_disk: 100,
+            mtime: 0,
             tier: tier_id,
             cat: 6,
         }
