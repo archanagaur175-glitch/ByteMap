@@ -167,7 +167,11 @@ fn basket_flow_on_temp_fixture() {
         }
         (ids, names)
     };
-    assert_eq!(file_ids.len(), 2, "fixture has exactly two files: {names:?}");
+    assert_eq!(
+        file_ids.len(),
+        2,
+        "fixture has exactly two files: {names:?}"
+    );
 
     // Bulk add with the Documents default: note.txt (documents) refused,
     // big.dat (other -> review) added.
@@ -175,8 +179,7 @@ fn basket_flow_on_temp_fixture() {
     assert_eq!(rep["count"], 1, "rep: {rep}");
     assert_eq!(rep["refused"].as_array().unwrap().len(), 1);
     assert_eq!(
-        rep["refused"][0]["reason"],
-        "documents-default-excluded",
+        rep["refused"][0]["reason"], "documents-default-excluded",
         "rep: {rep}"
     );
 

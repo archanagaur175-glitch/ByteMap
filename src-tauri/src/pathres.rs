@@ -58,7 +58,10 @@ mod tests {
             "root resolves to the scan root itself"
         );
         assert_eq!(node_path(&t, &root, 1), Some(root.join("sub")));
-        assert_eq!(node_path(&t, &root, 2), Some(root.join("sub").join("a.txt")));
+        assert_eq!(
+            node_path(&t, &root, 2),
+            Some(root.join("sub").join("a.txt"))
+        );
     }
 
     #[test]
