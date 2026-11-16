@@ -7,6 +7,10 @@
 //! (pagefile.sys, hiberfil.sys, swapfile.sys, Windows folder, System Volume
 //! Information, $Recycle.Bin).
 
+pub mod basket;
+
+pub use basket::{AddError, Basket, BasketItem};
+
 /// Placeholder version marker; replaced by action code in Phase 5.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
