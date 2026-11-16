@@ -234,6 +234,20 @@ body {
   color: var(--accent);
 }
 
+.cat-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 3px;
+  margin-right: 6px;
+  flex: none;
+  display: inline-block;
+}
+
+.tree-row.filtered .tree-name,
+.tree-row.filtered .tree-size {
+  opacity: 0.35;
+}
+
 .empty-hint {
   color: var(--muted);
   margin: auto;

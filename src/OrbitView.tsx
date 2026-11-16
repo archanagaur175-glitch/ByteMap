@@ -29,6 +29,8 @@ export function OrbitView() {
       orbit: cur.orbit,
       hoveredId,
       selectedId: cur.selectedId,
+      hiddenCats: cur.hiddenCats,
+      hiddenTiers: cur.hiddenTiers,
     });
   };
 
@@ -84,6 +86,8 @@ export function OrbitView() {
           orbit: cur.orbit,
           hoveredId: null,
           selectedId: cur.selectedId,
+          hiddenCats: cur.hiddenCats,
+          hiddenTiers: cur.hiddenTiers,
           zoom: 0.85 + 0.15 * e,
           alpha: e,
         });

@@ -4,6 +4,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { formatBytes } from "./parseView";
+import { CATEGORY_COLORS } from "./colors";
+import { useStore } from "./store";
 import type { ViewItem } from "./parseView";
 
 const ROW_HEIGHT = 28;
@@ -16,6 +18,7 @@ export function TreeList(props: {
   onOpen: (id: number) => void;
 }) {
   const { items, childDepth, selectedId, onOpen } = props;
+  const hiddenCats = useStore((s) => s.hiddenCats);
   const containerRef = useRef<HTMLDivElement>(null);
   const [scrollTop, setScrollTop] = useState(0);
   const [height, setHeight] = useState(600);
@@ -45,11 +48,12 @@ export function TreeList(props: {
         {window.map((item, i) => {
           const index = first + i;
           const folded = item.isFolded;
+          const filtered = hiddenCats.includes(item.cat);
           return (
             <div
               key={folded ? `folded-${index}` : item.id}
               className={
-                "tree-row" + (selectedId === item.id ? " selected" : "") + (folded ? " folded" : "")
+                "tree-row" + (selectedId === item.id ? " selected" : "") + (folded ? " folded" : "") + (filtered ? " filtered" : "")
               }
               style={{ top: index * ROW_HEIGHT, height: ROW_HEIGHT }}
               onClick={() => {
@@ -61,7 +65,12 @@ export function TreeList(props: {
                 className="tree-indent"
                 style={{ width: childDepth * 16 + (folded ? 0 : 18) }}
               />
-              <span className={"tier-dir"}>
+              <span
+                className="cat-dot"
+                style={{ background: CATEGORY_COLORS[item.cat] ?? "#8892A6" }}
+                aria-hidden="true"
+              />
+              <span className={folded ? "tier-dir" : "tier-file"}>
                 {folded ? "…" : item.flags & 1 ? "" : "▪"}
               </span>
               <span className="tree-name" title={item.name}>

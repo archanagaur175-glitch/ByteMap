@@ -4,6 +4,7 @@
 // component can hit-test clicks with the same numbers.
 
 import { formatBytes } from "./parseView";
+import { CATEGORY_COLORS } from "./colors";
 import type { Orbit } from "./orbit";
 
 export interface OrbitScene {
@@ -14,6 +15,10 @@ export interface OrbitScene {
   zoom?: number;
   /** Drill-in animation: 1 = opaque, 0 = invisible. */
   alpha?: number;
+  /** Category ids filtered out (drawn dimmed). */
+  hiddenCats?: number[];
+  /** Tier ids filtered out (drawn dimmed). */
+  hiddenTiers?: number[];
 }
 
 export interface OrbitRenderer {
@@ -22,18 +27,6 @@ export interface OrbitRenderer {
   /** Current canvas geometry for hit-testing (cx, cy, innerR, ringWidth). */
   geometry(): { cx: number; cy: number; innerR: number; ringWidth: number };
 }
-
-// Ring depth -> fill color (category colors arrive in Phase 4).
-const RING_COLORS = [
-  "#6EA8FF", // depth 1
-  "#5B9DFF",
-  "#3A66C4",
-  "#2A4A96",
-  "#1E356E",
-  "#172A55",
-  "#101E3E",
-  "#0B1730",
-];
 
 const BG = "#0b0f1a";
 const TEXT = "#e8ecf6";
@@ -134,10 +127,14 @@ export class Canvas2DRenderer implements OrbitRenderer {
 
     const hovered = scene.hoveredId === arc.id;
     const selected = scene.selectedId === arc.id;
-    ctx.fillStyle = RING_COLORS[Math.min(arc.depth - 1, RING_COLORS.length - 1)];
-    if (hovered) {
-      ctx.fillStyle = mix(this.ctx.fillStyle as string, "#ffffff", 0.35);
-    }
+    const filtered =
+      (scene.hiddenCats?.includes(arc.cat) ?? false) ||
+      (scene.hiddenTiers?.includes(arc.tier) ?? false);
+    // Arc fill = category color (ring depth no longer carries color).
+    let fill = CATEGORY_COLORS[arc.cat] ?? "#8892A6";
+    if (filtered) fill = mix(fill, BG, 0.75);
+    if (hovered && !filtered) fill = mix(fill, "#ffffff", 0.35);
+    ctx.fillStyle = fill;
     ctx.fill();
     // 1px separation between wedges.
     ctx.strokeStyle = BG;
