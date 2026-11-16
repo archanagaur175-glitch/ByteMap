@@ -1,0 +1,211 @@
+# ByteMap categorization rules (embedded into the binary via include_str!).
+# Evaluation order per node (PROJECT_BRIEF): path rules, then extension
+# rules, then size/age heuristics. First match wins within each class;
+# later classes only fill nodes still uncategorized. Protected names are
+# matched against ANY path component, case-insensitively, and always force
+# tier "protected" regardless of category.
+
+version = 1
+
+# --- path rules: any path component equals `name` (case-insensitive) ---
+[[path_rules]]
+category = "code"
+name = "node_modules"
+
+[[path_rules]]
+category = "code"
+name = "target"
+
+[[path_rules]]
+category = "code"
+name = ".gradle"
+
+[[path_rules]]
+category = "code"
+name = "__pycache__"
+
+[[path_rules]]
+category = "code"
+name = ".venv"
+
+[[path_rules]]
+category = "code"
+name = "dist"
+
+[[path_rules]]
+category = "code"
+name = ".git"
+
+[[path_rules]]
+category = "system"
+name = "AppData"
+
+[[path_rules]]
+category = "system"
+name = "Windows"
+
+[[path_rules]]
+category = "system"
+name = "System Volume Information"
+
+[[path_rules]]
+category = "system"
+name = "$Recycle.Bin"
+
+[[path_rules]]
+category = "apps"
+name = "Program Files"
+
+[[path_rules]]
+category = "apps"
+name = "Program Files (x86)"
+
+# --- extension rules: file extension (after the last dot), lower-case ---
+[[ext_rules]]
+category = "archives"
+ext = "zip"
+
+[[ext_rules]]
+category = "archives"
+ext = "7z"
+
+[[ext_rules]]
+category = "archives"
+ext = "rar"
+
+[[ext_rules]]
+category = "archives"
+ext = "iso"
+
+[[ext_rules]]
+category = "archives"
+ext = "tar"
+
+[[ext_rules]]
+category = "archives"
+ext = "gz"
+
+[[ext_rules]]
+category = "media"
+ext = "mp4"
+
+[[ext_rules]]
+category = "media"
+ext = "mkv"
+
+[[ext_rules]]
+category = "media"
+ext = "avi"
+
+[[ext_rules]]
+category = "media"
+ext = "mp3"
+
+[[ext_rules]]
+category = "media"
+ext = "flac"
+
+[[ext_rules]]
+category = "media"
+ext = "wav"
+
+[[ext_rules]]
+category = "media"
+ext = "jpg"
+
+[[ext_rules]]
+category = "media"
+ext = "png"
+
+[[ext_rules]]
+category = "media"
+ext = "gif"
+
+[[ext_rules]]
+category = "documents"
+ext = "pdf"
+
+[[ext_rules]]
+category = "documents"
+ext = "docx"
+
+[[ext_rules]]
+category = "documents"
+ext = "xlsx"
+
+[[ext_rules]]
+category = "documents"
+ext = "pptx"
+
+[[ext_rules]]
+category = "documents"
+ext = "txt"
+
+[[ext_rules]]
+category = "apps"
+ext = "exe"
+
+[[ext_rules]]
+category = "apps"
+ext = "msi"
+
+[[ext_rules]]
+category = "code"
+ext = "rs"
+
+[[ext_rules]]
+category = "code"
+ext = "ts"
+
+[[ext_rules]]
+category = "code"
+ext = "tsx"
+
+[[ext_rules]]
+category = "code"
+ext = "js"
+
+[[ext_rules]]
+category = "code"
+ext = "py"
+
+[[ext_rules]]
+category = "code"
+ext = "c"
+
+[[ext_rules]]
+category = "code"
+ext = "cpp"
+
+[[ext_rules]]
+category = "code"
+ext = "h"
+
+# --- size heuristics: files only, only when still uncategorized ---
+[[size_rules]]
+category = "other"
+min_size_mb = 512
+no_ext_only = true
+
+# --- safety tiers ---
+# Any path component equal to one of these (case-insensitive) forces tier
+# "protected"; the app must never offer delete actions for these.
+[protected]
+names = [
+    "pagefile.sys",
+    "hiberfil.sys",
+    "swapfile.sys",
+    "Windows",
+    "System Volume Information",
+    "$Recycle.Bin",
+]
+
+# Default tier per category (overridden by `protected`).
+[tier_by_category]
+code = "safe"
+archives = "safe"
+media = "safe"
+system = "review"
+documents = "review"
+apps = "review"
+other = "review"

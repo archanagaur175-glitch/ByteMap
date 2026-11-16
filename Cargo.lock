@@ -212,6 +212,10 @@ version = "0.1.0"
 [[package]]
 name = "bytemap-core"
 version = "0.1.0"
+dependencies = [
+ "serde",
+ "toml 1.2.1+spec-1.1.0",
+]
 
 [[package]]
 name = "bytemap-scan"

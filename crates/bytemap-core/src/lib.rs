@@ -1,10 +1,12 @@
 //! bytemap-core: arena tree, roll-ups, categorizer, and layout for ByteMap.
 
+pub mod categorizer;
 pub mod orbit;
 pub mod rollup;
 pub mod tree;
 pub mod view;
 
+pub use categorizer::{categorize, Category, Rules, Tier, DEFAULT_RULES};
 pub use orbit::{
     build_orbit, serialize_orbit, Orbit, OrbitArc, MAX_ARCS, MIN_SWEEP, ORBIT_VERSION, TURN,
 };
