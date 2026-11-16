@@ -77,10 +77,10 @@ fn full_flow_scan_progress_complete_view() {
     // --- the session tree survived, and view_bytes decodes in our format ---
     let s = shared.lock().unwrap();
     assert!(!s.running, "session must be idle after complete");
-    let bytes = view_bytes(&s.tree, root_id, 200);
+    let bytes = view_bytes(&s.tree, &s.cats, root_id, 200);
     drop(s);
     let mut d = ViewDecoder::new(&bytes);
-    assert_eq!(d.u16(), 1, "view version");
+    assert_eq!(d.u16(), 2, "view version (v2: cat + tier per item)");
     let ancestors = d.u16();
     let requested = d.u32();
     assert_eq!(requested, root_id, "view is for the scanned root");
@@ -100,6 +100,8 @@ fn full_flow_scan_progress_complete_view() {
         d.u64(); // logical
         d.u64(); // on_disk
         d.u16(); // flags
+        d.u8(); // category (v2)
+        d.u8(); // tier (v2)
         d.str(); // name
     }
     assert!(d.at_end(), "view buffer fully consumed");
@@ -120,6 +122,9 @@ impl<'a> ViewDecoder<'a> {
         let s = &self.buf[self.pos..self.pos + n];
         self.pos += n;
         s
+    }
+    fn u8(&mut self) -> u8 {
+        self.take(1)[0]
     }
     fn u16(&mut self) -> u16 {
         u16::from_le_bytes(self.take(2).try_into().unwrap())

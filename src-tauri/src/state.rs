@@ -8,6 +8,8 @@ use bytemap_core::Tree;
 pub struct Session {
     /// The most recently completed scan (empty while scanning or idle).
     pub tree: Tree,
+    /// Categories + tiers for `tree` (computed once per completed scan).
+    pub cats: bytemap_core::categorizer::CategoryMap,
     /// True while a scan is in flight; start_scan rejects concurrent scans.
     pub running: bool,
     /// Cooperative cancel flag for the running scan (or the next one).
@@ -18,6 +20,7 @@ impl Default for Session {
     fn default() -> Self {
         Session {
             tree: Tree::new(),
+            cats: bytemap_core::categorizer::CategoryMap { cat: Vec::new(), tier: Vec::new() },
             running: false,
             cancel: Arc::new(AtomicBool::new(false)),
         }

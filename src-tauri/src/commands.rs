@@ -130,8 +130,11 @@ pub fn run_scan_job(
     let event = match result {
         Ok(stats) => {
             let root_id = tree.root();
+            // Categories/tiers computed once per completed scan (Phase 4).
+            let cats = bytemap_core::categorize(&tree, &bytemap_core::Rules::default_rules());
             let mut s = shared.lock().unwrap();
             s.tree = tree;
+            s.cats = cats;
             s.running = false;
             json!({
                 "type": "complete",
@@ -183,7 +186,7 @@ pub fn node_view(
     let limit = limit.unwrap_or(200).clamp(1, 2000);
     let bytes = {
         let s = session.lock().unwrap();
-        view::view_bytes(&s.tree, node_id, limit)
+        view::view_bytes(&s.tree, &s.cats, node_id, limit)
     };
     tauri::ipc::Response::new(tauri::ipc::InvokeResponseBody::Raw(bytes))
 }
@@ -200,7 +203,7 @@ pub fn node_orbit(
     let rings = rings.unwrap_or(4).clamp(1, 8);
     let bytes = {
         let s = session.lock().unwrap();
-        view::orbit_bytes(&s.tree, node_id, rings, max_arcs.unwrap_or(0))
+        view::orbit_bytes(&s.tree, &s.cats, node_id, rings, max_arcs.unwrap_or(0))
     };
     tauri::ipc::Response::new(tauri::ipc::InvokeResponseBody::Raw(bytes))
 }
