@@ -2,6 +2,7 @@
 //! The binary in main.rs only calls `run()`.
 
 pub mod commands;
+pub mod pathres;
 pub mod state;
 pub mod view;
 
@@ -16,6 +17,10 @@ pub fn run() {
             commands::node_view,
             commands::node_orbit,
             commands::bench_report,
+            commands::basket_add,
+            commands::basket_remove,
+            commands::basket_clear,
+            commands::basket_list,
         ])
         .run(tauri::generate_context!())
         .expect("error while running ByteMap");

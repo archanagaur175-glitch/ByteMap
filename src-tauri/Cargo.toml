@@ -20,6 +20,7 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 bytemap-core = { path = "../crates/bytemap-core" }
 bytemap-scan = { path = "../crates/bytemap-scan" }
+bytemap-actions = { path = "../crates/bytemap-actions" }
 
 [features]
 # This feature is used by tauri's build for the custom-protocol production path.
