@@ -4,16 +4,18 @@
 //!
 //! The wire format is packed little-endian binary:
 //! ```text
-//! u16 version (= 1)
+//! u16 version (= 2)
 //! u16 ancestor_count
 //! u32 requested_node_id
 //! per ancestor:        u32 id, u16 name_len, name bytes (UTF-8)
 //! u32 total_child_count   (before folding)
 //! u32 item_count          (after folding)
 //! per item:            u32 id (u32::MAX = folded entry), u64 logical,
-//!                      u64 on_disk, u16 flags, u16 name_len, name bytes
+//!                      u64 on_disk, u16 flags, u8 category, u8 tier,
+//!                      u16 name_len, name bytes
 //! ```
 
+use crate::categorizer::CategoryMap;
 use crate::rollup::children_by_size;
 use crate::tree::{flags, NodeId, Tree, NONE};
 
@@ -23,7 +25,8 @@ pub const FOLDED_ID: u32 = NONE;
 /// Extra node flag marking the folded entry (only exists inside views).
 pub const VIEW_FOLDED: u16 = 32;
 
-pub const VIEW_VERSION: u16 = 1;
+/// v2: adds u8 category + u8 tier per item (Phase 4).
+pub const VIEW_VERSION: u16 = 2;
 
 /// One entry of a view (after folding).
 #[derive(Debug, Clone)]
@@ -32,6 +35,10 @@ pub struct ViewItem {
     pub logical: u64,
     pub on_disk: u64,
     pub flags: u16,
+    /// Category id (categorizer::category::*); Other for the folded entry.
+    pub cat: u8,
+    /// Safety tier id (categorizer::tier::*).
+    pub tier: u8,
     pub name: String,
 }
 
@@ -47,8 +54,9 @@ pub struct View {
 }
 
 /// Build the view for `id`: ancestor chain + top `limit` children by size,
-/// folding the remainder into one summary entry when folded.
-pub fn build_view(tree: &Tree, id: NodeId, limit: u32) -> View {
+/// folding the remainder into one summary entry when folded. Categories and
+/// tiers come from `cats` (must cover the tree; missing entries read as 0).
+pub fn build_view(tree: &Tree, cats: &CategoryMap, id: NodeId, limit: u32) -> View {
     let mut ancestors = Vec::new();
     let mut cur = tree.parent(id);
     while let Some(p) = cur {
@@ -71,6 +79,8 @@ pub fn build_view(tree: &Tree, id: NodeId, limit: u32) -> View {
             logical: n.agg_logical,
             on_disk: n.agg_on_disk,
             flags: n.flags,
+            cat: cats.cat.get(child as usize).copied().unwrap_or(0),
+            tier: cats.tier.get(child as usize).copied().unwrap_or(0),
             name: tree.name(child).to_string(),
         });
     }
@@ -84,6 +94,8 @@ pub fn build_view(tree: &Tree, id: NodeId, limit: u32) -> View {
             logical,
             on_disk,
             flags: VIEW_FOLDED | flags::DIR,
+            cat: crate::categorizer::category::OTHER,
+            tier: crate::categorizer::tier::REVIEW,
             name: format!("{n} small items"),
         });
     }
@@ -113,6 +125,8 @@ pub fn serialize_view(view: &View) -> Vec<u8> {
         put_u64(&mut out, item.logical);
         put_u64(&mut out, item.on_disk);
         put_u16(&mut out, item.flags);
+        out.push(item.cat);
+        out.push(item.tier);
         put_str(&mut out, &item.name);
     }
     out
@@ -138,6 +152,7 @@ fn put_str(out: &mut Vec<u8>, s: &str) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::categorizer::{categorize, category, tier, Rules};
 
     fn build() -> Tree {
         //  root
@@ -156,11 +171,15 @@ mod tests {
         t
     }
 
+    fn cats(t: &Tree) -> CategoryMap {
+        categorize(t, &Rules::default_rules())
+    }
+
     #[test]
     fn top_n_and_folded_summary() {
         let t = build();
         let root = t.root().unwrap();
-        let view = build_view(&t, root, 3);
+        let view = build_view(&t, &cats(&t), root, 3);
         assert_eq!(view.total_children, 5);
         assert_eq!(view.items.len(), 3);
         assert!(view.items[0].id != FOLDED_ID);
@@ -180,12 +199,12 @@ mod tests {
         let root = t.root().unwrap();
         let sub = t.insert_child(root, "sub", flags::DIR, 0, 0, 0);
         let file = t.insert_child(sub, "f.txt", 0, 0, 1, 1);
-        let view = build_view(&t, file, 10);
+        let view = build_view(&t, &cats(&t), file, 10);
         assert_eq!(
             view.ancestors,
             vec![(root, "C:".to_string()), (sub, "sub".to_string())]
         );
-        let root_view = build_view(&t, root, 10);
+        let root_view = build_view(&t, &cats(&t), root, 10);
         assert!(root_view.ancestors.is_empty());
     }
 
@@ -195,7 +214,7 @@ mod tests {
         let root = t.root().unwrap();
         let sub = t.insert_child(root, "sub", flags::DIR, 0, 0, 0);
         t.insert_child(sub, "f.txt", 0, 0, 1, 1);
-        let view = build_view(&t, sub, 10);
+        let view = build_view(&t, &cats(&t), sub, 10);
         let bytes = serialize_view(&view);
         let d = &mut Decoder::new(&bytes);
         assert_eq!(d.u16(), VIEW_VERSION);
@@ -209,6 +228,9 @@ mod tests {
         assert_eq!(d.u64(), 1);
         assert_eq!(d.u64(), 1);
         d.u16(); // flags
+        // v2: category + tier (f.txt -> documents/review).
+        assert_eq!(d.u8(), category::DOCUMENTS);
+        assert_eq!(d.u8(), tier::REVIEW);
         assert_eq!(d.str(), "f.txt");
         assert!(d.at_end());
     }
@@ -227,6 +249,9 @@ mod tests {
             let s = &self.buf[self.pos..self.pos + n];
             self.pos += n;
             s
+        }
+        fn u8(&mut self) -> u8 {
+            self.take(1)[0]
         }
         fn u16(&mut self) -> u16 {
             u16::from_le_bytes(self.take(2).try_into().unwrap())

@@ -3,23 +3,26 @@
 //! Rust (PROJECT_BRIEF); the UI receives packed little-endian bytes:
 //!
 //! ```text
-//! u16 version (= 1)
+//! u16 version (= 2)
 //! u32 center_id
 //! u64 center_logical, u64 center_on_disk
 //! u16 ring_count (layout depth limit, not arcs len)
 //! u32 arc_count
 //! per arc: u32 id, u16 depth (1 = first ring), u16 start, u16 sweep,
-//!          u64 logical, u64 on_disk, u16 flags, u16 name_len, name bytes
+//!          u64 logical, u64 on_disk, u16 flags, u8 category, u8 tier,
+//!          u16 name_len, name bytes
 //! ```
 //!
 //! Angles are fixed point: 65536 = one full turn (2*pi rad). A sweep below
 //! [`MIN_SWEEP`] is skipped entirely (invisible sliver); the arc budget caps
 //! the message at [`MAX_ARCS`] entries (brief: <= 4000 drawn primitives).
 
+use crate::categorizer::CategoryMap;
 use crate::rollup::children_by_size;
 use crate::tree::{flags, NodeId, Tree};
 
-pub const ORBIT_VERSION: u16 = 1;
+/// v2: adds u8 category + u8 tier per arc (Phase 4).
+pub const ORBIT_VERSION: u16 = 2;
 
 /// One full turn in fixed point (65536 -> 2*pi).
 pub const TURN: u32 = 65536;
@@ -43,6 +46,10 @@ pub struct OrbitArc {
     pub logical: u64,
     pub on_disk: u64,
     pub flags: u16,
+    /// Category id (categorizer::category::*).
+    pub cat: u8,
+    /// Safety tier id (categorizer::tier::*).
+    pub tier: u8,
     pub name: String,
 }
 
@@ -61,7 +68,7 @@ pub struct Orbit {
 ///
 /// Children of a parent are laid out in descending size order, each taking
 /// `parent_sweep * child_agg / parent_agg` of the parent's angular span.
-pub fn build_orbit(tree: &Tree, id: NodeId, rings: u16, max_arcs: u32) -> Orbit {
+pub fn build_orbit(tree: &Tree, cats: &CategoryMap, id: NodeId, rings: u16, max_arcs: u32) -> Orbit {
     let center = tree.node(id);
     let mut orbit = Orbit {
         center: id,
@@ -79,6 +86,7 @@ pub fn build_orbit(tree: &Tree, id: NodeId, rings: u16, max_arcs: u32) -> Orbit 
     }
     let mut builder = OrbitBuilder {
         tree,
+        cats,
         rings: orbit.rings,
         budget,
         out: &mut orbit.arcs,
@@ -90,6 +98,7 @@ pub fn build_orbit(tree: &Tree, id: NodeId, rings: u16, max_arcs: u32) -> Orbit 
 /// Carries the immutable layout context through the recursion.
 struct OrbitBuilder<'a, 'b> {
     tree: &'a Tree,
+    cats: &'a CategoryMap,
     rings: u16,
     budget: usize,
     out: &'b mut Vec<OrbitArc>,
@@ -123,6 +132,8 @@ impl OrbitBuilder<'_, '_> {
                     logical: n.agg_logical(),
                     on_disk: n.agg_on_disk(),
                     flags: n.flags(),
+                    cat: self.cats.cat.get(child as usize).copied().unwrap_or(0),
+                    tier: self.cats.tier.get(child as usize).copied().unwrap_or(0),
                     name: self.tree.name(child).to_string(),
                 });
                 if n.flags() & flags::DIR != 0 && depth < self.rings {
@@ -151,6 +162,8 @@ pub fn serialize_orbit(orbit: &Orbit) -> Vec<u8> {
         put_u64(&mut out, arc.logical);
         put_u64(&mut out, arc.on_disk);
         put_u16(&mut out, arc.flags);
+        out.push(arc.cat);
+        out.push(arc.tier);
         put_str(&mut out, &arc.name);
     }
     out
@@ -177,6 +190,12 @@ fn put_str(out: &mut Vec<u8>, s: &str) {
 mod tests {
     use super::*;
 
+    use crate::categorizer::{categorize, CategoryMap, Rules};
+
+    fn cats(t: &Tree) -> CategoryMap {
+        categorize(t, &Rules::default_rules())
+    }
+
     /// root 1000: a 500 (dir) -> a1 400, a2 100; b 300; c 200
     fn build() -> Tree {
         let mut t = Tree::new();
@@ -202,7 +221,7 @@ mod tests {
     fn ring1_angles_proportional_and_ordered() {
         let t = build();
         let root = t.root().unwrap();
-        let orbit = build_orbit(&t, root, 2, 0);
+        let orbit = build_orbit(&t, &cats(&t), root, 2, 0);
         assert_eq!(orbit.rings, 2);
         assert_eq!(orbit.center_logical, 1000);
         // Ring 1: a(1/2 turn), b(3/10), c(1/5), laid out sequentially.
@@ -220,7 +239,7 @@ mod tests {
     fn ring2_splits_parent_arc() {
         let t = build();
         let root = t.root().unwrap();
-        let orbit = build_orbit(&t, root, 2, 0);
+        let orbit = build_orbit(&t, &cats(&t), root, 2, 0);
         // a1 and a2 live inside a's arc: a takes 80% of it.
         let a1 = find(&orbit, "a1");
         let a2 = find(&orbit, "a2");
@@ -239,7 +258,7 @@ mod tests {
         t.insert_child(root, "big", 0, 0, 1_000_000, 1_000_000);
         t.insert_child(root, "tiny", 0, 0, 1, 1); // sweep 0 < MIN_SWEEP
         crate::rollup::recompute_rollups(&mut t);
-        let orbit = build_orbit(&t, root, 1, 0);
+        let orbit = build_orbit(&t, &cats(&t), root, 1, 0);
         assert_eq!(orbit.arcs.len(), 1, "tiny arc below MIN_SWEEP skipped");
         assert_eq!(orbit.arcs[0].name, "big");
         // big's sweep is proportional to the parent total, not inflated.
@@ -264,7 +283,7 @@ mod tests {
             );
         }
         crate::rollup::recompute_rollups(&mut t);
-        let orbit = build_orbit(&t, root, 1, 7);
+        let orbit = build_orbit(&t, &cats(&t), root, 1, 7);
         assert_eq!(orbit.arcs.len(), 7);
     }
 
@@ -272,7 +291,7 @@ mod tests {
     fn serialize_roundtrip() {
         let t = build();
         let root = t.root().unwrap();
-        let orbit = build_orbit(&t, root, 2, 0);
+        let orbit = build_orbit(&t, &cats(&t), root, 2, 0);
         let bytes = serialize_orbit(&orbit);
         let mut d = Decoder::new(&bytes);
         assert_eq!(d.u16(), ORBIT_VERSION);
@@ -293,6 +312,8 @@ mod tests {
             d.u64();
             d.u64();
             d.u16();
+            assert_eq!(d.u8(), arc.cat);
+            assert_eq!(d.u8(), arc.tier);
             assert_eq!(d.str(), arc.name);
             if arc.depth == 1 {
                 assert!(start >= prev_end, "ring-1 arcs are sequential");
@@ -306,7 +327,7 @@ mod tests {
     fn empty_center_yields_no_arcs() {
         let mut t = Tree::new();
         let root = t.insert_root("C:");
-        let orbit = build_orbit(&t, root, 3, 0);
+        let orbit = build_orbit(&t, &cats(&t), root, 3, 0);
         assert!(orbit.arcs.is_empty());
         assert_eq!(orbit.center_logical, 0);
     }
@@ -325,6 +346,9 @@ mod tests {
             let s = &self.buf[self.pos..self.pos + n];
             self.pos += n;
             s
+        }
+        fn u8(&mut self) -> u8 {
+            self.take(1)[0]
         }
         fn u16(&mut self) -> u16 {
             u16::from_le_bytes(self.take(2).try_into().unwrap())
