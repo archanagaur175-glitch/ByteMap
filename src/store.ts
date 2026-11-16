@@ -29,12 +29,18 @@ interface ByteMapState {
   selectedId: number | null;
   /** Name of the currently open node (for the breadcrumb's last crumb). */
   tailName: string | null;
+  /** Category ids filtered out of views (dimmed, Phase 4). */
+  hiddenCats: number[];
+  /** Tier ids filtered out of views (dimmed, Phase 4). */
+  hiddenTiers: number[];
   // commands
   setFolder: (folder: string) => void;
   startScan: () => Promise<void>;
   cancelScan: () => Promise<void>;
   openNode: (nodeId: number) => Promise<void>;
   select: (id: number) => void;
+  toggleCat: (cat: number) => void;
+  toggleTier: (tier: number) => void;
 }
 
 export const useStore = create<ByteMapState>((set, get) => ({
@@ -47,6 +53,8 @@ export const useStore = create<ByteMapState>((set, get) => ({
   orbit: null,
   selectedId: null,
   tailName: null,
+  hiddenCats: [],
+  hiddenTiers: [],
 
   setFolder: (folder) => set({ folder }),
 
@@ -126,6 +134,20 @@ export const useStore = create<ByteMapState>((set, get) => ({
   },
 
   select: (id) => set({ selectedId: id }),
+
+  toggleCat: (cat) =>
+    set((s) => ({
+      hiddenCats: s.hiddenCats.includes(cat)
+        ? s.hiddenCats.filter((c) => c !== cat)
+        : [...s.hiddenCats, cat],
+    })),
+
+  toggleTier: (tier) =>
+    set((s) => ({
+      hiddenTiers: s.hiddenTiers.includes(tier)
+        ? s.hiddenTiers.filter((t) => t !== tier)
+        : [...s.hiddenTiers, tier],
+    })),
 }));
 
 export function isFolded(item: ViewItem): boolean {

@@ -249,3 +249,45 @@ body {
   border-radius: 12px;
   background: var(--panel);
 }
+
+.legend {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 4px 2px;
+}
+
+.legend-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.legend-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 9px;
+  border: 1px solid #2a3350;
+  border-radius: 10px;
+  background: var(--panel);
+  color: var(--text);
+  font-size: 11.5px;
+  cursor: pointer;
+}
+
+.legend-chip:hover {
+  border-color: var(--accent);
+}
+
+.legend-chip.hidden {
+  opacity: 0.35;
+  text-decoration: line-through;
+}
+
+.swatch {
+  width: 9px;
+  height: 9px;
+  border-radius: 3px;
+  display: inline-block;
+}

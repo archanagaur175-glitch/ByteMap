@@ -1,6 +1,7 @@
 import { TreeList } from "./TreeList";
 import { OrbitView } from "./OrbitView";
 import { OrbitBench } from "./OrbitBench";
+import { Legend } from "./Legend";
 import { useStore } from "./store";
 
 export default function App() {
@@ -56,6 +57,7 @@ export default function App() {
             ))}
             <span className="crumb current">{tailName ?? "root"}</span>
           </nav>
+          <Legend />
           <OrbitView />
           <div className="stats-line">
             {view.totalChildren.toLocaleString()} items in this folder
