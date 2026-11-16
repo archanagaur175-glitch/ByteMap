@@ -68,7 +68,13 @@ pub struct Orbit {
 ///
 /// Children of a parent are laid out in descending size order, each taking
 /// `parent_sweep * child_agg / parent_agg` of the parent's angular span.
-pub fn build_orbit(tree: &Tree, cats: &CategoryMap, id: NodeId, rings: u16, max_arcs: u32) -> Orbit {
+pub fn build_orbit(
+    tree: &Tree,
+    cats: &CategoryMap,
+    id: NodeId,
+    rings: u16,
+    max_arcs: u32,
+) -> Orbit {
     let center = tree.node(id);
     let mut orbit = Orbit {
         center: id,

@@ -152,7 +152,10 @@ pub fn categorize(tree: &Tree, rules: &Rules) -> CategoryMap {
         // 1. path rules (first match wins)
         let mut c = category::OTHER;
         for rule in &rules.path_rules {
-            if components.iter().any(|comp| comp.eq_ignore_ascii_case(&rule.name)) {
+            if components
+                .iter()
+                .any(|comp| comp.eq_ignore_ascii_case(&rule.name))
+            {
                 c = rule.category.id();
                 break;
             }
@@ -190,10 +193,13 @@ pub fn categorize(tree: &Tree, rules: &Rules) -> CategoryMap {
             .get(category_name(c))
             .copied()
             .unwrap_or(Tier::Review);
-        if components
-            .iter()
-            .any(|comp| rules.protected.names.iter().any(|p| comp.eq_ignore_ascii_case(p)))
-        {
+        if components.iter().any(|comp| {
+            rules
+                .protected
+                .names
+                .iter()
+                .any(|p| comp.eq_ignore_ascii_case(p))
+        }) {
             t = Tier::Protected;
         }
 
@@ -289,8 +295,8 @@ mod tests {
         let m = categorize(&t, &rules);
         assert_eq!(m.cat[6], category::MEDIA); // film.mp4
         assert_eq!(m.cat[7], category::DOCUMENTS); // notes.pdf
-        // explorer.exe lives inside "Windows": path rules run FIRST, so the
-        // System path rule wins over the .exe extension rule.
+                                                   // explorer.exe lives inside "Windows": path rules run FIRST, so the
+                                                   // System path rule wins over the .exe extension rule.
         assert_eq!(m.cat[2], category::SYSTEM);
         // A bare exe outside any matched path is Apps.
         assert_eq!(m.cat[11], category::APPS); // setup.exe at root
@@ -302,7 +308,7 @@ mod tests {
         let rules = Rules::default_rules();
         let m = categorize(&t, &rules);
         assert_eq!(m.cat[9], category::OTHER); // mystery: 600 MB, no ext -> other rule
-        // small.dat has an extension -> size rule (no_ext_only) skipped.
+                                               // small.dat has an extension -> size rule (no_ext_only) skipped.
         assert_eq!(m.cat[10], category::OTHER);
     }
 
@@ -314,7 +320,7 @@ mod tests {
         assert_eq!(m.tier[8], tier::PROTECTED); // pagefile.sys
         assert_eq!(m.tier[1], tier::PROTECTED); // Windows folder
         assert_eq!(m.tier[2], tier::PROTECTED); // explorer.exe inside Windows
-        // Normal items follow tier_by_category.
+                                                // Normal items follow tier_by_category.
         assert_eq!(m.tier[6], tier::SAFE); // media -> safe
         assert_eq!(m.tier[7], tier::REVIEW); // documents -> review
     }

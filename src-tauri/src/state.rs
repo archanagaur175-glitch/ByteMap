@@ -20,7 +20,10 @@ impl Default for Session {
     fn default() -> Self {
         Session {
             tree: Tree::new(),
-            cats: bytemap_core::categorizer::CategoryMap { cat: Vec::new(), tier: Vec::new() },
+            cats: bytemap_core::categorizer::CategoryMap {
+                cat: Vec::new(),
+                tier: Vec::new(),
+            },
             running: false,
             cancel: Arc::new(AtomicBool::new(false)),
         }

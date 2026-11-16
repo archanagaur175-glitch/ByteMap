@@ -228,7 +228,7 @@ mod tests {
         assert_eq!(d.u64(), 1);
         assert_eq!(d.u64(), 1);
         d.u16(); // flags
-        // v2: category + tier (f.txt -> documents/review).
+                 // v2: category + tier (f.txt -> documents/review).
         assert_eq!(d.u8(), category::DOCUMENTS);
         assert_eq!(d.u8(), tier::REVIEW);
         assert_eq!(d.str(), "f.txt");
