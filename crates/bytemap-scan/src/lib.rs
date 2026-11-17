@@ -3,6 +3,8 @@
 
 pub mod error;
 pub mod metadata;
+#[cfg(windows)]
+pub mod mft_client;
 pub mod walker;
 
 pub use error::ScanError;
