@@ -31,6 +31,9 @@ pub const PROTOCOL_MAGIC: [u8; 4] = *b"BYM1";
 /// Protocol version. Bumped on any wire-format change.
 pub const PROTOCOL_VERSION: u16 = 1;
 
+#[cfg(windows)]
+pub mod proto;
+
 /// Serve the named pipe until `shutdown` is observed (between clients).
 ///
 /// Blocks. Errors from pipe creation or connect are returned; client
@@ -53,22 +56,23 @@ pub fn serve(pipe_name: &str, shutdown: &AtomicBool) -> io::Result<()> {
 #[cfg(windows)]
 mod pipe {
     use std::ffi::OsStr;
+    use std::fs::File;
     use std::io;
     use std::os::windows::ffi::OsStrExt;
+    use std::os::windows::io::FromRawHandle;
     use std::sync::atomic::{AtomicBool, Ordering};
 
     use windows_sys::Win32::Foundation::{
-        CloseHandle, ERROR_BROKEN_PIPE, ERROR_NO_DATA, ERROR_PIPE_CONNECTED, HANDLE,
-        INVALID_HANDLE_VALUE,
+        CloseHandle, ERROR_PIPE_CONNECTED, HANDLE, INVALID_HANDLE_VALUE,
     };
     use windows_sys::Win32::Storage::FileSystem::{
-        ReadFile, WriteFile, FILE_FLAG_FIRST_PIPE_INSTANCE, PIPE_ACCESS_DUPLEX,
+        FILE_FLAG_FIRST_PIPE_INSTANCE, PIPE_ACCESS_DUPLEX,
     };
     use windows_sys::Win32::System::Pipes::{
         ConnectNamedPipe, CreateNamedPipeW, PIPE_READMODE_BYTE, PIPE_TYPE_BYTE, PIPE_WAIT,
     };
 
-    use crate::{PROTOCOL_MAGIC, PROTOCOL_VERSION};
+    use crate::proto::{self, Frame, HandshakeError};
 
     /// Serve clients one at a time until `shutdown` is seen between clients.
     pub(super) fn serve(pipe_name: &str, shutdown: &AtomicBool) -> io::Result<()> {
@@ -78,17 +82,62 @@ mod pipe {
                 unsafe { CloseHandle(handle) };
                 return Err(err);
             }
-            // Serve this client to completion (handshake, then whatever the
-            // session does) before ever accepting another.
-            let outcome = handshake(handle).and_then(|()| drain_client(handle));
-            unsafe { CloseHandle(handle) };
+            // The File owns the pipe handle from here on: dropping it closes
+            // the instance. Serve this client to completion before ever
+            // accepting another.
+            let mut stream = unsafe { File::from_raw_handle(handle) };
+            let outcome = run_session(&mut stream);
+            drop(stream);
             if let Err(err) = outcome {
                 // A rejected or malformed client is already disconnected and
                 // must not take the server down.
-                eprintln!("bytemap-helper: client rejected: {err}");
+                eprintln!("bytemap-helper: client session ended: {err}");
             }
         }
         Ok(())
+    }
+
+    /// One client session: handshake, one scan request, frames back.
+    fn run_session(stream: &mut File) -> Result<(), SessionError> {
+        proto::handshake_server(stream).map_err(SessionError::Handshake)?;
+        let request = proto::read_frame(stream)?;
+        match request {
+            Frame::ScanRequest { .. } => {
+                // P6.T3 streams the real MFT records here. Fail visibly,
+                // on the wire, until then.
+                proto::write_frame(
+                    stream,
+                    &Frame::Error {
+                        message: "mft streaming not wired yet (P6.T3)".to_owned(),
+                    },
+                )?;
+                Ok(())
+            }
+            other => Err(SessionError::Protocol(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("expected a scan request, got {other:?}"),
+            ))),
+        }
+    }
+
+    enum SessionError {
+        Handshake(HandshakeError),
+        Protocol(io::Error),
+    }
+
+    impl From<io::Error> for SessionError {
+        fn from(err: io::Error) -> Self {
+            SessionError::Protocol(err)
+        }
+    }
+
+    impl core::fmt::Display for SessionError {
+        fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+            match self {
+                SessionError::Handshake(err) => write!(f, "{err}"),
+                SessionError::Protocol(err) => write!(f, "{err}"),
+            }
+        }
     }
 
     /// Wait for one client. Success or `ERROR_PIPE_CONNECTED` (the client
@@ -127,111 +176,6 @@ mod pipe {
             return Err(io::Error::last_os_error());
         }
         Ok(handle)
-    }
-
-    /// Handshake. Client sends magic (4 bytes) + protocol version (u16 LE);
-    /// server answers magic + its version + status byte (0 ok, 1 bad magic,
-    /// 2 bad version). A non-zero status ends the connection.
-    fn handshake(handle: HANDLE) -> io::Result<()> {
-        let mut request = [0u8; 6];
-        read_exact(handle, &mut request)?;
-        let version = u16::from_le_bytes([request[4], request[5]]);
-        let (status, verdict) = if request[0..4] != PROTOCOL_MAGIC {
-            (1u8, Some("bad magic"))
-        } else if version != PROTOCOL_VERSION {
-            (2, Some("bad version"))
-        } else {
-            (0, None)
-        };
-        let mut reply = Vec::with_capacity(7);
-        reply.extend_from_slice(&PROTOCOL_MAGIC);
-        reply.extend_from_slice(&PROTOCOL_VERSION.to_le_bytes());
-        reply.push(status);
-        write_all(handle, &reply)?;
-        match verdict {
-            Some(reason) => Err(io::Error::new(io::ErrorKind::InvalidData, reason)),
-            None => Ok(()),
-        }
-    }
-
-    /// Consume the client's post-handshake bytes (none in this skeleton) and
-    /// wait for the disconnect. EOF, `ERROR_BROKEN_PIPE` and `ERROR_NO_DATA`
-    /// are the normal end of a client session.
-    fn drain_client(handle: HANDLE) -> io::Result<()> {
-        let mut byte = [0u8; 1];
-        let mut read = 0u32;
-        let ok = unsafe {
-            ReadFile(
-                handle,
-                byte.as_mut_ptr(),
-                1,
-                &mut read,
-                std::ptr::null_mut(),
-            )
-        };
-        if ok != 0 {
-            // Stray bytes are ignored in this skeleton (P6.T2 streams frames).
-            return Ok(());
-        }
-        let err = io::Error::last_os_error();
-        match err.raw_os_error() {
-            Some(code) if code as u32 == ERROR_BROKEN_PIPE || code as u32 == ERROR_NO_DATA => {
-                Ok(())
-            }
-            _ => Err(err),
-        }
-    }
-
-    fn read_exact(handle: HANDLE, mut buf: &mut [u8]) -> io::Result<()> {
-        while !buf.is_empty() {
-            let mut read = 0u32;
-            let ok = unsafe {
-                ReadFile(
-                    handle,
-                    buf.as_mut_ptr(),
-                    buf.len() as u32,
-                    &mut read,
-                    std::ptr::null_mut(),
-                )
-            };
-            if ok == 0 {
-                return Err(io::Error::last_os_error());
-            }
-            if read == 0 {
-                return Err(io::Error::new(
-                    io::ErrorKind::UnexpectedEof,
-                    "client disconnected mid-handshake",
-                ));
-            }
-            buf = &mut buf[read as usize..];
-        }
-        Ok(())
-    }
-
-    fn write_all(handle: HANDLE, mut buf: &[u8]) -> io::Result<()> {
-        while !buf.is_empty() {
-            let mut written = 0u32;
-            let ok = unsafe {
-                WriteFile(
-                    handle,
-                    buf.as_ptr(),
-                    buf.len() as u32,
-                    &mut written,
-                    std::ptr::null_mut(),
-                )
-            };
-            if ok == 0 {
-                return Err(io::Error::last_os_error());
-            }
-            if written == 0 {
-                return Err(io::Error::new(
-                    io::ErrorKind::WriteZero,
-                    "client stopped reading mid-handshake",
-                ));
-            }
-            buf = &buf[written as usize..];
-        }
-        Ok(())
     }
 }
 
