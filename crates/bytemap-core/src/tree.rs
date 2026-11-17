@@ -205,6 +205,14 @@ impl Tree {
         id
     }
 
+    /// Patch one node's on-disk aggregate after insertion. The MFT tier
+    /// uses this for compressed/sparse files, whose exact on-disk size
+    /// needs a per-file query on the built path (P6.T3b). Directory
+    /// aggregates are recomputed by the roll-up pass and ignore this.
+    pub fn set_on_disk(&mut self, id: NodeId, on_disk: u64) {
+        self.nodes[id as usize].agg_on_disk = on_disk;
+    }
+
     fn push_node(
         &mut self,
         parent: Option<NodeId>,

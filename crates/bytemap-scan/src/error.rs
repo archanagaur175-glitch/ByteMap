@@ -12,4 +12,6 @@ pub enum ScanError {
     Cancelled,
     #[error("internal error: parent directory {0:?} was not registered before its children")]
     MissingParent(PathBuf),
+    #[error("mft record stream is invalid: {0}")]
+    Stream(String),
 }

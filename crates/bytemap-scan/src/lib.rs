@@ -5,6 +5,8 @@ pub mod error;
 pub mod metadata;
 #[cfg(windows)]
 pub mod mft_client;
+#[cfg(windows)]
+pub mod mft_tree;
 pub mod walker;
 
 pub use error::ScanError;
