@@ -28,9 +28,12 @@ pub const DEFAULT_PIPE_NAME: &str = r"\\.\pipe\bytemap-scan";
 
 /// Frame magic for every protocol message ("BYM1").
 pub const PROTOCOL_MAGIC: [u8; 4] = *b"BYM1";
-/// Protocol version. Bumped on any wire-format change.
-pub const PROTOCOL_VERSION: u16 = 1;
+/// Protocol version. Bumped on any wire-format change. 2: Record gained
+/// `mtime` (P6.T3a).
+pub const PROTOCOL_VERSION: u16 = 2;
 
+#[cfg(windows)]
+pub mod mft;
 #[cfg(windows)]
 pub mod proto;
 
@@ -57,7 +60,7 @@ pub fn serve(pipe_name: &str, shutdown: &AtomicBool) -> io::Result<()> {
 mod pipe {
     use std::ffi::OsStr;
     use std::fs::File;
-    use std::io;
+    use std::io::{self, Read, Write};
     use std::os::windows::ffi::OsStrExt;
     use std::os::windows::io::FromRawHandle;
     use std::sync::atomic::{AtomicBool, Ordering};
@@ -72,6 +75,7 @@ mod pipe {
         ConnectNamedPipe, CreateNamedPipeW, PIPE_READMODE_BYTE, PIPE_TYPE_BYTE, PIPE_WAIT,
     };
 
+    use crate::mft;
     use crate::proto::{self, Frame, HandshakeError};
 
     /// Serve clients one at a time until `shutdown` is seen between clients.
@@ -98,19 +102,15 @@ mod pipe {
     }
 
     /// One client session: handshake, one scan request, frames back.
-    fn run_session(stream: &mut File) -> Result<(), SessionError> {
+    /// Visible to tests so a session can run over in-memory buffers.
+    pub(super) fn run_session<S: Read + Write>(stream: &mut S) -> Result<(), SessionError> {
         proto::handshake_server(stream).map_err(SessionError::Handshake)?;
-        let request = proto::read_frame(stream)?;
-        match request {
-            Frame::ScanRequest { .. } => {
-                // P6.T3 streams the real MFT records here. Fail visibly,
-                // on the wire, until then.
-                proto::write_frame(
-                    stream,
-                    &Frame::Error {
-                        message: "mft streaming not wired yet (P6.T3)".to_owned(),
-                    },
-                )?;
+        match proto::read_frame(stream)? {
+            Frame::ScanRequest { path } => {
+                // Streams the real MFT records (P6.T3a). Every failure is
+                // reported on the wire as an Error frame, which ends the
+                // session normally.
+                mft::handle_scan_request(stream, &path);
                 Ok(())
             }
             other => Err(SessionError::Protocol(io::Error::new(
@@ -120,7 +120,8 @@ mod pipe {
         }
     }
 
-    enum SessionError {
+    #[derive(Debug)]
+    pub(super) enum SessionError {
         Handshake(HandshakeError),
         Protocol(io::Error),
     }

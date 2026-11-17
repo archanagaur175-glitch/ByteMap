@@ -8,6 +8,7 @@ repository.workspace = true
 authors.workspace = true
 
 [target.'cfg(windows)'.dependencies]
+ntfs-reader = "0.6.0"
 windows-sys = { version = "0.61.2", features = [
   "Win32_Foundation",
   "Win32_Security",
@@ -18,11 +19,6 @@ windows-sys = { version = "0.61.2", features = [
 
 [target.'cfg(windows)'.build-dependencies]
 embed-resource = "3.0.12"
-
-# P1.T7 spike only: the example probes the MFT without elevating the lib.
-# P6.T3 promotes ntfs-reader to a real dependency of the helper lib.
-[dev-dependencies]
-ntfs-reader = "0.6.0"
 
 # The bin embeds a requireAdministrator manifest, so launching it needs
 # elevation. `cargo test` would try to run its (empty) test harness and fail

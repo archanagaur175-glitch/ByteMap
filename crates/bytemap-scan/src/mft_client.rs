@@ -131,15 +131,16 @@ mod tests {
         let mut client =
             MftClient::connect(&name).expect("connect must retry until the server is up");
         client
-            .request_scan(r"C:\fixture")
+            .request_scan(r"Q:\fixture")
             .expect("scan request must be sent");
-        // The T2 stub server answers every scan request with an explicit
-        // on-the-wire Error frame (real streaming is P6.T3).
+        // The real server (P6.T3a) parses the path, tries to open the
+        // volume, and reports the failure as a terminal Error frame.
+        // Q: is assumed to be a nonexistent drive on this machine.
         match client.next_frame().expect("server must answer") {
             Frame::Error { message } => {
-                assert!(message.contains("P6.T3"), "stub reply: {message}");
+                assert!(message.contains("cannot open"), "reply: {message}");
             }
-            other => panic!("expected an Error frame from the stub, got {other:?}"),
+            other => panic!("expected an Error frame, got {other:?}"),
         }
         // The helper observes the shutdown flag only between clients (its
         // accept blocks while idle, documented T1 limitation), so park a

@@ -10,7 +10,7 @@
 //! | op | frame       | payload after the opcode                                        |
 //! |----|-------------|-----------------------------------------------------------------|
 //! | 1  | ScanRequest | u16 len + UTF-8 path (the scan root)                            |
-//! | 2  | Record      | file_ref u64, parent_ref u64, logical u64, allocated u64, attrs u32, u16 len + UTF-8 name |
+//! | 2  | Record      | file_ref u64, parent_ref u64, logical u64, allocated u64, attrs u32, mtime i64, u16 len + UTF-8 name |
 //! | 3  | Done        | entries u64, logical_bytes u64 (session summary)                |
 //! | 4  | Error       | u16 len + UTF-8 message (terminal: the server closes after it)  |
 
@@ -39,6 +39,11 @@ pub struct Record {
     /// Win32 attribute flags (`FILE_ATTRIBUTE_*`): directory bit, hidden,
     /// system, reparse point, ...
     pub attributes: u32,
+    /// Modification time as FILETIME ticks (100 ns since 1601-01-01), the
+    /// same encoding the walker records; 0 when unknown. Tree nodes feed
+    /// the Action Hub stale-guard (size + mtime re-check), so MFT nodes
+    /// must carry a real mtime.
+    pub mtime: i64,
     /// The file's name (longest Win32 name; UTF-8 on the wire).
     pub name: String,
 }
@@ -156,13 +161,14 @@ fn encode(frame: &Frame) -> Vec<u8> {
             v
         }
         Frame::Record(rec) => {
-            let mut v = Vec::with_capacity(1 + 8 * 4 + 4 + 2 + rec.name.len());
+            let mut v = Vec::with_capacity(1 + 8 * 4 + 4 + 8 + 2 + rec.name.len());
             v.push(OP_RECORD);
             v.extend_from_slice(&rec.file_ref.to_le_bytes());
             v.extend_from_slice(&rec.parent_ref.to_le_bytes());
             v.extend_from_slice(&rec.logical_size.to_le_bytes());
             v.extend_from_slice(&rec.allocated_size.to_le_bytes());
             v.extend_from_slice(&rec.attributes.to_le_bytes());
+            v.extend_from_slice(&rec.mtime.to_le_bytes());
             v.extend_from_slice(&(rec.name.len() as u16).to_le_bytes());
             v.extend_from_slice(rec.name.as_bytes());
             v
@@ -198,7 +204,7 @@ fn decode(payload: &[u8]) -> io::Result<Frame> {
             Ok(Frame::ScanRequest { path })
         }
         OP_RECORD => {
-            let fixed = 8 * 4 + 4;
+            let fixed = 8 * 4 + 4 + 8;
             if rest.len() < fixed {
                 return Err(bad_frame("record shorter than its fixed fields"));
             }
@@ -207,6 +213,7 @@ fn decode(payload: &[u8]) -> io::Result<Frame> {
             let logical_size = u64::from_le_bytes(rest[16..24].try_into().expect("8 bytes"));
             let allocated_size = u64::from_le_bytes(rest[24..32].try_into().expect("8 bytes"));
             let attributes = u32::from_le_bytes(rest[32..36].try_into().expect("4 bytes"));
+            let mtime = i64::from_le_bytes(rest[36..44].try_into().expect("8 bytes"));
             let (name, rest) = take_string(&rest[fixed..])?;
             trailing(rest)?;
             Ok(Frame::Record(Record {
@@ -215,6 +222,7 @@ fn decode(payload: &[u8]) -> io::Result<Frame> {
                 logical_size,
                 allocated_size,
                 attributes,
+                mtime,
                 name,
             }))
         }
@@ -287,6 +295,7 @@ mod tests {
                 logical_size: 123_456_789,
                 allocated_size: 123_457_536,
                 attributes: 0x0020,
+                mtime: 133_500_000_000_000_000,
                 name: "報告書.txt".to_owned(),
             }),
             Frame::Done {
@@ -376,9 +385,12 @@ mod tests {
     fn server_handshake_replies_ok_over_a_real_buffer() {
         let mut stream = Duplex::new(handshake_request(&PROTOCOL_MAGIC, PROTOCOL_VERSION));
         handshake_server(&mut stream).unwrap();
+        let mut expected = Vec::new();
+        expected.extend_from_slice(&PROTOCOL_MAGIC);
+        expected.extend_from_slice(&PROTOCOL_VERSION.to_le_bytes());
+        expected.push(0);
         assert_eq!(
-            stream.outgoing,
-            vec![b'B', b'Y', b'M', b'1', 1, 0, 0],
+            stream.outgoing, expected,
             "reply must be magic + version + status 0"
         );
     }
@@ -388,9 +400,12 @@ mod tests {
         let mut stream = Duplex::new(handshake_request(b"NOPE", PROTOCOL_VERSION));
         let err = handshake_server(&mut stream).unwrap_err();
         assert!(matches!(err, HandshakeError::BadMagic));
+        let mut expected = Vec::new();
+        expected.extend_from_slice(&PROTOCOL_MAGIC);
+        expected.extend_from_slice(&PROTOCOL_VERSION.to_le_bytes());
+        expected.push(1);
         assert_eq!(
-            stream.outgoing,
-            vec![b'B', b'Y', b'M', b'1', 1, 0, 1],
+            stream.outgoing, expected,
             "status 1 must be sent before the rejection"
         );
     }
