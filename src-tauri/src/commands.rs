@@ -457,6 +457,46 @@ pub fn basket_remove(node_id: u32, session: State<'_, SharedSession>) -> bool {
     session.lock().unwrap().basket.remove(node_id)
 }
 
+/// Dry run of the current basket: re-checks every path (size + mtime vs
+/// the scan snapshot, in-use via Restart Manager) and reports status.
+/// NEVER mutates anything. UI shows this before the user executes.
+pub fn dry_run_core(shared: &SharedSession) -> Value {
+    let s = shared.lock().unwrap();
+    let items: Vec<BasketItem> = s.basket.items().to_vec();
+    if items.is_empty() {
+        return json!({ "entries": [], "count": 0 });
+    }
+    let entries = dry_run(&items, &rm_probe);
+    let json_entries: Vec<Value> = entries
+        .into_iter()
+        .map(|e| {
+            json!({
+                "nodeId": e.node_id,
+                "path": e.path,
+                "logicalScan": e.logical_scan,
+                "sizeNow": e.size_now,
+                "mtimeScan": e.mtime_scan,
+                "mtimeNow": e.mtime_now,
+                "tier": e.tier,
+                "cat": e.cat,
+                "inUse": e.in_use,
+                "probeError": e.probe_error,
+                "status": match e.status {
+                    StaleStatus::Ok => "ok",
+                    StaleStatus::Changed => "changed",
+                    StaleStatus::Missing => "missing",
+                },
+            })
+        })
+        .collect();
+    json!({ "entries": json_entries, "count": json_entries.len() })
+}
+
+#[tauri::command]
+pub fn dry_run_basket(session: State<'_, SharedSession>) -> Value {
+    dry_run_core(session.inner())
+}
+
 #[tauri::command]
 pub fn basket_clear(session: State<'_, SharedSession>) {
     session.lock().unwrap().basket.clear();

@@ -21,6 +21,7 @@ pub fn run() {
             commands::basket_remove,
             commands::basket_clear,
             commands::basket_list,
+            commands::dry_run_basket,
             commands::execute_recycle,
             commands::execute_permanent,
             commands::execute_archive,
