@@ -13,6 +13,12 @@ serde_json = { workspace = true }
 # Recycle Bin (owner-approved 2026-11-16, brief approved list; verified
 # latest 5.3.0, MIT, MSRV 1.87).
 trash = "5.3"
+# Archive container (owner-approved archive format 2026-11-16; zstd is on
+# the brief's approved list — verified latest 0.14.4 2026-11-12, BSD-3-Clause).
+zstd = "0.14"
+# Archive verify = SHA-256 (owner-approved 2026-11-17; RustCrypto, pure
+# Rust, MIT OR Apache-2.0, verified latest 0.11.1 2026-10-12, MSRV 1.88).
+sha2 = "0.11"
 
 # Restart Manager probe (file-in-use status for the dry run) — same
 # windows-sys version as bytemap-scan for a single lockfile resolution.

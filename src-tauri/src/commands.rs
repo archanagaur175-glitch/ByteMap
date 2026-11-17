@@ -14,7 +14,9 @@ use bytemap_actions::dry_run;
 use bytemap_actions::inuse;
 use bytemap_actions::journal::{Journal, JournalEntry, JournalItem};
 use bytemap_actions::recycle::{permanent_delete_items, recycle_items, ActionOutcome};
-use bytemap_actions::{undo_recycle, AddError, BasketItem, StaleStatus};
+use bytemap_actions::{
+    archive_items, restore_archive, undo_recycle, AddError, BasketItem, StaleStatus,
+};
 use bytemap_core::categorizer::category;
 use bytemap_scan::{scan_folder, ScanError, ScanOptions, ScanProgress};
 
@@ -148,6 +150,75 @@ mod tests {
         let modified = std::fs::metadata(p).ok().and_then(|md| md.modified().ok());
         bytemap_actions::dryrun::system_time_to_filetime(&modified)
             .expect("fixture file has an mtime")
+    }
+
+    /// Archive end-to-end: execute_action_core(mode "archive") writes a
+    /// verified container, removes the original, journals the container
+    /// location — and undo_last_core restores the file byte-for-byte.
+    #[test]
+    fn archive_execute_then_undo_restores() {
+        std::env::set_var("BYTEMAP_UNDO_DIR", temp_dir().join("bytemap-arch-journal"));
+        std::env::set_var(
+            "BYTEMAP_ARCHIVE_DIR",
+            temp_dir().join("bytemap-arch-containers"),
+        );
+
+        let dir = temp_dir().join("bytemap-arch-fixture");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let f = dir.join("data.bin");
+        let payload: Vec<u8> = (0..50_000u32).map(|i| (i % 249) as u8).collect();
+        std::fs::write(&f, &payload).unwrap();
+
+        let shared: SharedSession = Arc::new(Mutex::new(crate::state::Session::default()));
+        {
+            let mut s = shared.lock().unwrap();
+            s.root_path = dir.clone();
+            s.basket
+                .add(BasketItem {
+                    node_id: 1,
+                    path: f.to_string_lossy().into_owned(),
+                    name: "data.bin".to_string(),
+                    logical: payload.len() as u64,
+                    on_disk: payload.len() as u64,
+                    mtime: real_mtime(&f),
+                    tier: 0,
+                    cat: 6,
+                })
+                .unwrap();
+        }
+
+        let report = execute_action_core(&shared, "archive", None);
+        assert_eq!(
+            report["executed"].as_array().unwrap().len(),
+            1,
+            "report: {report}"
+        );
+        assert!(report["journaled"].as_bool().unwrap(), "report: {report}");
+        assert!(!f.exists(), "original removed after verified archive");
+        assert_eq!(shared.lock().unwrap().basket.len(), 0);
+
+        // Journal records the archive + container location.
+        let j = Journal::open().unwrap();
+        let last = j.last().unwrap().expect("journal line");
+        assert_eq!(last.action, "archive");
+        let container = last.archive.clone().expect("container recorded");
+        assert!(std::path::Path::new(&container).exists());
+
+        // Undo: restores byte-for-byte.
+        let rep = undo_last_core();
+        assert_eq!(rep["undoable"], true, "rep: {rep}");
+        assert_eq!(rep["restored"].as_array().unwrap().len(), 1, "rep: {rep}");
+        assert!(f.exists(), "undo restored the file");
+        assert_eq!(std::fs::read(&f).unwrap(), payload, "byte-for-byte");
+
+        // Redundant belt-and-braces: direct restore is idempotent-check via
+        // conflicts (file now exists again -> would be a conflict).
+        let direct = bytemap_actions::restore_archive(std::path::Path::new(&container)).unwrap();
+        assert_eq!(direct.restored.len(), 0);
+        assert_eq!(direct.conflicts.len(), 1, "never overwrites: {direct:?}");
+
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }
 
@@ -433,15 +504,16 @@ fn rm_probe(_p: &str) -> (bool, Option<String>) {
 
 /// Testable execution core: dry run -> drop changed/missing -> tier gate ->
 /// execute -> append-only journal -> clear executed items from the basket.
-/// `mode` is "recycle" (default) or "permanent" (requires the exact typed
-/// confirmation string; recycle.rs enforces it again).
+/// `mode` is "recycle" (default), "permanent" (requires the exact typed
+/// confirmation string; recycle.rs enforces it again) or "archive"
+/// (compress + verify + remove originals; archive.rs enforces the gate).
 pub fn execute_action_core(
     shared: &SharedSession,
     mode: &str,
     confirmation: Option<&str>,
 ) -> Value {
     let mut s = shared.lock().unwrap();
-    if !matches!(mode, "recycle" | "permanent") {
+    if !matches!(mode, "recycle" | "permanent" | "archive") {
         return json!({ "error": format!("unknown mode {mode}") });
     }
     let items: Vec<BasketItem> = s.basket.items().to_vec();
@@ -465,9 +537,22 @@ pub fn execute_action_core(
         }
     }
 
-    // 2. execute (recycle.rs re-gates tiers per item).
-    let outcomes = match mode {
-        "recycle" => recycle_items(&live),
+    // 2. execute (each backend re-gates tiers per item).
+    // Archive: one container for the whole batch; a verify failure fails
+    // the entire archive (Err) and keeps every original.
+    let archive_result = if mode == "archive" {
+        match archive_items(&live, &archive_dir()) {
+            Ok(r) => Some(r),
+            Err(e) => {
+                return json!({ "error": format!("archive: {e}"), "executed": [], "dropped": dropped })
+            }
+        }
+    } else {
+        None
+    };
+    let outcomes = match (&archive_result, mode) {
+        (Some(r), _) => r.outcomes.clone(),
+        (None, "recycle") => recycle_items(&live),
         _ => permanent_delete_items(&live, confirmation),
     };
 
@@ -483,10 +568,12 @@ pub fn execute_action_core(
                     .iter()
                     .map(|o| JournalItem {
                         path: o.path.clone(),
-                        kind: "file".to_string(), // refined by restore in T5
+                        kind: "file".to_string(),
                         logical: 0,
                     })
                     .collect(),
+                // Archive undo needs the container location.
+                archive: archive_result.as_ref().map(|r| r.archive_path.clone()),
             };
             journaled = journal.append(&entry).is_ok();
         }
@@ -520,6 +607,20 @@ fn now_ms() -> u64 {
         .unwrap_or(0)
 }
 
+/// Archive containers live under %LOCALAPPDATA%\ByteMap\archives (local-only
+/// product); BYTEMAP_ARCHIVE_DIR overrides for tests.
+fn archive_dir() -> std::path::PathBuf {
+    std::env::var_os("BYTEMAP_ARCHIVE_DIR")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| {
+            std::env::var_os("LOCALAPPDATA")
+                .map(std::path::PathBuf::from)
+                .unwrap_or_else(std::env::temp_dir)
+                .join("ByteMap")
+                .join("archives")
+        })
+}
+
 #[tauri::command]
 pub fn execute_recycle(session: State<'_, SharedSession>) -> Value {
     execute_action_core(session.inner(), "recycle", None)
@@ -528,6 +629,11 @@ pub fn execute_recycle(session: State<'_, SharedSession>) -> Value {
 #[tauri::command]
 pub fn execute_permanent(confirmation: String, session: State<'_, SharedSession>) -> Value {
     execute_action_core(session.inner(), "permanent", Some(&confirmation))
+}
+
+#[tauri::command]
+pub fn execute_archive(session: State<'_, SharedSession>) -> Value {
+    execute_action_core(session.inner(), "archive", None)
 }
 
 // --- Action Hub: undo (Phase 5) ---
@@ -565,11 +671,22 @@ pub fn undo_last_core() -> Value {
             "action": "permanent",
             "reason": "permanent deletes cannot be undone",
         }),
-        "archive" => json!({
-            "undoable": false,
-            "action": "archive",
-            "reason": "archive undo arrives with archive mode (P5.T6)",
-        }),
+        "archive" => match last.archive.as_deref() {
+            Some(container) => match restore_archive(std::path::Path::new(container)) {
+                Ok(rep) => json!({
+                    "undoable": true,
+                    "action": "archive",
+                    "restored": rep.restored,
+                    "conflicts": rep.conflicts,
+                }),
+                Err(e) => json!({ "undoable": true, "action": "archive", "error": e }),
+            },
+            None => json!({
+                "undoable": false,
+                "action": "archive",
+                "reason": "journal entry has no archive location",
+            }),
+        },
         other => json!({ "undoable": false, "reason": format!("unknown journal action {other}") }),
     }
 }

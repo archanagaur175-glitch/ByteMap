@@ -23,6 +23,7 @@ pub fn run() {
             commands::basket_list,
             commands::execute_recycle,
             commands::execute_permanent,
+            commands::execute_archive,
             commands::undo_last,
         ])
         .run(tauri::generate_context!())

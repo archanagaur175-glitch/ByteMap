@@ -17,6 +17,10 @@ pub struct JournalEntry {
     /// "recycle" | "permanent" | "archive" (string ids, stable for the UI).
     pub action: String,
     pub items: Vec<JournalItem>,
+    /// Archive mode only: absolute path of the .bma container (undo reads
+    /// it back). Absent (null) for recycle/permanent entries.
+    #[serde(default)]
+    pub archive: Option<String>,
 }
 
 /// One item of a journaled action.
@@ -106,6 +110,7 @@ mod tests {
                 kind: "file".to_string(),
                 logical: 42,
             }],
+            archive: None,
         }
     }
 

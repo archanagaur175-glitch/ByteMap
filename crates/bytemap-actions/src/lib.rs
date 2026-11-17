@@ -7,6 +7,7 @@
 //! (pagefile.sys, hiberfil.sys, swapfile.sys, Windows folder, System Volume
 //! Information, $Recycle.Bin).
 
+pub mod archive;
 pub mod basket;
 
 pub mod dryrun;
@@ -16,6 +17,7 @@ pub mod journal;
 pub mod recycle;
 pub mod restore;
 
+pub use archive::{archive_items, restore_archive, ArchiveResult, RestoreResult};
 pub use basket::{AddError, Basket, BasketItem};
 pub use dryrun::{dry_run, DryRunEntry, StaleStatus};
 pub use journal::{Journal, JournalEntry, JournalItem};
