@@ -18,7 +18,7 @@
 - [x] P1.T4 | Fixture tests: junction, symlink, hardlink, ACL-denied (#[ignore] with reason if icacls fails), deep paths | bytemap-scan/tests/fixtures.rs, walker_rules.rs | cargo test -p bytemap-scan --test walker_rules
 - [x] P1.T5 | Benchmark binary; 100k fixture built once into %TEMP%\bytemap-bench-100k, reused; report cold + warm + Defender status | bytemap-scan/src/bin/bench-walk.rs | cargo run --release -p bytemap-scan --bin bench-walk
 - [x] P1.T6 | Clippy-clean; record 100k benchmark in STATUS/SESSION_LOG | docs/agent/* | scripts/check.ps1
-- [ ] P1.T7 | (SPIKE, PENDING OWNER APPROVAL — DO NOT RUN) mft_probe.rs example with ntfs-reader, read-only, entry count + elapsed; owner runs it (elevation) | bytemap-scan/examples/mft_probe.rs | owner-run manually
+- [x] P1.T7 | (SPIKE, APPROVED 2026-11-17 — owner runs it) mft_probe.rs example with ntfs-reader, read-only, entry count + elapsed; owner runs it (elevation) | bytemap-helper/examples/mft_probe.rs (moved from bytemap-scan: the helper crate is where ntfs-reader will live in T3) | owner-run manually
 - [x] P1.GATE | Tests pass; junction/hardlink/denied covered; 100k benchmark recorded | — | scripts/check.ps1
 
 Result: 100k fixture (101,112 entries incl. marker): cold 1.407 s / 71.9k entries/s, warm 1.379 s / 73.3k entries/s (process 2 cold 1.233 s / 82.0k); with hardlink dedup 2.659 s / 38.0k entries/s. Defender real-time protection ACTIVE during runs. Walker target (< 30 s per 1M entries = 33.3k/s) met in both modes. Dedup default: AWAITING OWNER CHOICE.
