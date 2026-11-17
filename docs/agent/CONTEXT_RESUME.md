@@ -5,7 +5,7 @@ Project: ByteMap — native Windows 11 disk-space analyzer. Tauri 2 + Rust works
 Licence: MIT OR Apache-2.0 (dual). Repo: C:\Users\archa\Documents\ByteMap.
 Remote: origin https://github.com/archanagaur175-glitch/ByteMap (branch main, push authorized after each task).
 
-Current state: PHASES 0+1+2 COMPLETE, gates green (2026-11-15). Arena tree + roll-ups in bytemap-core;
+Current state: // P5 (2026-11-17): T1-T7 COMPLETE, gate check green, AWAITING OWNER CODE REVIEW - basket + dry-run/stale guard + Restart Manager probe + recycle + permanent-delete(typed PERMANENT) + JSONL undo journal + undo + archive .bma (zstd+sha2, verify-then-remove) + Action Hub UI; tests 26+5+2 Rust + 10 vitest; deps added: trash 5.3, zstd 0.14.4, sha2 0.11.1 (all owner-approved). PHASES 0+1+2 COMPLETE, gates green (2026-11-15). Arena tree + roll-ups in bytemap-core;
 walker scanner (jwalk 0.9) with all scanner rules verified by fixture tests; bench-walk binary with
 reusable %TEMP%\bytemap-bench-100k fixture (101,112 entries: cold 71.9k/s, warm 73.3k/s, best 82.0k/s,
 with hardlink dedup 38.0k/s; target 33.3k/s met; Defender real-time was ON). Phase 2 done: start_scan/
