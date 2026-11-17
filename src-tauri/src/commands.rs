@@ -14,7 +14,7 @@ use bytemap_actions::dry_run;
 use bytemap_actions::inuse;
 use bytemap_actions::journal::{Journal, JournalEntry, JournalItem};
 use bytemap_actions::recycle::{permanent_delete_items, recycle_items, ActionOutcome};
-use bytemap_actions::{AddError, BasketItem, StaleStatus};
+use bytemap_actions::{undo_recycle, AddError, BasketItem, StaleStatus};
 use bytemap_core::categorizer::category;
 use bytemap_scan::{scan_folder, ScanError, ScanOptions, ScanProgress};
 
@@ -528,4 +528,53 @@ pub fn execute_recycle(session: State<'_, SharedSession>) -> Value {
 #[tauri::command]
 pub fn execute_permanent(confirmation: String, session: State<'_, SharedSession>) -> Value {
     execute_action_core(session.inner(), "permanent", Some(&confirmation))
+}
+
+// --- Action Hub: undo (Phase 5) ---
+
+/// Undo the most recent journaled action (testable core; no session state).
+/// Recycle actions are undone by restoring from the Recycle Bin (matched by
+/// the journaled original paths). Permanent deletes cannot be undone —
+/// reported as such. Undo does NOT modify the journal (it is append-only;
+/// an undo is its own action conceptually, but nothing destructive).
+pub fn undo_last_core() -> Value {
+    let journal = match Journal::open() {
+        Ok(j) => j,
+        Err(e) => {
+            return json!({ "undoable": false, "reason": format!("journal unavailable: {e}") })
+        }
+    };
+    let last = match journal.last() {
+        Ok(Some(e)) => e,
+        _ => return json!({ "undoable": false, "reason": "no journaled actions yet" }),
+    };
+    let paths: Vec<String> = last.items.iter().map(|i| i.path.clone()).collect();
+
+    match last.action.as_str() {
+        "recycle" => match undo_recycle(&paths) {
+            Ok(rep) => json!({
+                "undoable": true,
+                "action": "recycle",
+                "restored": rep.restored,
+                "notFound": rep.not_found,
+            }),
+            Err(e) => json!({ "undoable": true, "action": "recycle", "error": e }),
+        },
+        "permanent" => json!({
+            "undoable": false,
+            "action": "permanent",
+            "reason": "permanent deletes cannot be undone",
+        }),
+        "archive" => json!({
+            "undoable": false,
+            "action": "archive",
+            "reason": "archive undo arrives with archive mode (P5.T6)",
+        }),
+        other => json!({ "undoable": false, "reason": format!("unknown journal action {other}") }),
+    }
+}
+
+#[tauri::command]
+pub fn undo_last() -> Value {
+    undo_last_core()
 }

@@ -14,11 +14,13 @@ pub mod dryrun;
 pub mod inuse;
 pub mod journal;
 pub mod recycle;
+pub mod restore;
 
 pub use basket::{AddError, Basket, BasketItem};
 pub use dryrun::{dry_run, DryRunEntry, StaleStatus};
 pub use journal::{Journal, JournalEntry, JournalItem};
 pub use recycle::{permanent_delete_items, recycle_items, ActionOutcome, PERMANENT_CONFIRMATION};
+pub use restore::{undo_recycle, UndoReport};
 
 /// Placeholder version marker; replaced by action code in Phase 5.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
