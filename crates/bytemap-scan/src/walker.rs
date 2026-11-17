@@ -29,7 +29,8 @@ pub struct ScanOptions {
     /// Deduplicate hardlinks by file ID. When set, the second and later
     /// names of a hardlinked file are flagged `DUPLICATE_HARDLINK` and
     /// contribute no size. Costs one handle-open per file (benchmarked in
-    /// P1.T3b); default is decided by the owner.
+    /// P1.T3b). Default is OFF (owner decision 2026-11-17: 82.0k entries/s
+    /// without dedup vs 38.0k with; MFT tier dedups by file ID regardless).
     pub hardlink_dedup: bool,
     /// Cooperative cancel flag, checked between entries. When triggered the
     /// scan stops early and returns [`ScanError::Cancelled`].
