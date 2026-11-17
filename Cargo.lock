@@ -236,6 +236,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "bytemap-helper"
+version = "0.1.0"
+dependencies = [
+ "embed-resource",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
 name = "bytemap-scan"
 version = "0.1.0"
 dependencies = [

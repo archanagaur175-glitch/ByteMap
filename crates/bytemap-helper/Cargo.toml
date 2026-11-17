@@ -1,0 +1,28 @@
+[package]
+name = "bytemap-helper"
+description = "ByteMap elevated MFT scan helper: named-pipe server, never runs inside the main app"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61.2", features = [
+  "Win32_Foundation",
+  "Win32_Security",
+  "Win32_Storage_FileSystem",
+  "Win32_System_IO",
+  "Win32_System_Pipes",
+] }
+
+[target.'cfg(windows)'.build-dependencies]
+embed-resource = "3.0.12"
+
+# The bin embeds a requireAdministrator manifest, so launching it needs
+# elevation. `cargo test` would try to run its (empty) test harness and fail
+# with os error 740 — exclude the bin target from test runs entirely.
+[[bin]]
+name = "bytemap-helper"
+path = "src/main.rs"
+test = false
