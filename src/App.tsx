@@ -2,6 +2,7 @@ import { TreeList } from "./TreeList";
 import { OrbitView } from "./OrbitView";
 import { OrbitBench } from "./OrbitBench";
 import { Legend } from "./Legend";
+import { ActionHub } from "./ActionHub";
 import { useStore } from "./store";
 
 export default function App() {
@@ -69,6 +70,7 @@ export default function App() {
             selectedId={selectedId}
             onOpen={(id) => void openNode(id)}
           />
+          <ActionHub />
         </>
       )}
       {!view && !progress && !error && (

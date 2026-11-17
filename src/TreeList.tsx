@@ -3,7 +3,7 @@
 // (top-N + folded summary), identified by node id.
 
 import { useEffect, useRef, useState } from "react";
-import { formatBytes } from "./parseView";
+import { formatBytes, TIER_PROTECTED } from "./parseView";
 import { CATEGORY_COLORS } from "./colors";
 import { useStore } from "./store";
 import type { ViewItem } from "./parseView";
@@ -77,6 +77,24 @@ export function TreeList(props: {
                 {item.name}
               </span>
               <span className="tree-size">{formatBytes(item.logical)}</span>
+              {!folded && (item.tier === 0 || item.tier === 1) && !(item.flags & 1) && (
+                <button
+                  className="row-add"
+                  title={`Add ${item.name} to the Action Hub basket`}
+                  aria-label={`add ${item.name} to basket`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    void useStore.getState().addToBasket([item.id], false);
+                  }}
+                >
+                  ＋
+                </button>
+              )}
+              {!folded && item.tier === TIER_PROTECTED && (
+                <span className="row-add disabled" title="Protected — never deletable" aria-label="protected item">
+                  ⃠
+                </span>
+              )}
             </div>
           );
         })}
