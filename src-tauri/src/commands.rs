@@ -614,6 +614,24 @@ pub fn node_orbit(
     tauri::ipc::Response::new(tauri::ipc::InvokeResponseBody::Raw(bytes))
 }
 
+/// Strata (layered treemap) layout for `node_id`: rectangle area = share
+/// of the parent's aggregate size, nested `depth` layers (default 3).
+/// Travels as packed little-endian bytes via ipc::Response.
+#[tauri::command]
+pub fn node_strata(
+    node_id: u32,
+    depth: Option<u16>,
+    max_rects: Option<u32>,
+    session: State<'_, SharedSession>,
+) -> tauri::ipc::Response {
+    let depth = depth.unwrap_or(3).clamp(1, 4);
+    let bytes = {
+        let s = session.lock().unwrap();
+        view::strata_bytes(&s.tree, &s.cats, node_id, depth, max_rects.unwrap_or(0))
+    };
+    tauri::ipc::Response::new(tauri::ipc::InvokeResponseBody::Raw(bytes))
+}
+
 // --- Action Hub: basket (Phase 5) ---
 
 fn add_error_reason(e: AddError) -> &'static str {

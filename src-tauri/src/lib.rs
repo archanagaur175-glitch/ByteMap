@@ -17,6 +17,7 @@ pub fn run() {
             commands::ensure_helper,
             commands::node_view,
             commands::node_orbit,
+            commands::node_strata,
             commands::bench_report,
             commands::basket_add,
             commands::basket_remove,

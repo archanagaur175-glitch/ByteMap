@@ -3,7 +3,9 @@
 //! formats) lives in bytemap-core.
 
 use bytemap_core::categorizer::CategoryMap;
-use bytemap_core::{build_orbit, build_view, serialize_orbit, serialize_view, Tree};
+use bytemap_core::{
+    build_orbit, build_strata, build_view, serialize_orbit, serialize_strata, serialize_view, Tree,
+};
 
 /// Serialize the view for `node_id` into the packed binary format
 /// documented in bytemap-core::view.
@@ -21,4 +23,16 @@ pub fn orbit_bytes(
     max_arcs: u32,
 ) -> Vec<u8> {
     serialize_orbit(&build_orbit(tree, cats, node_id, rings, max_arcs))
+}
+
+/// Serialize the Strata (layered treemap) layout for `node_id` into the
+/// packed binary format documented in bytemap-core::strata.
+pub fn strata_bytes(
+    tree: &Tree,
+    cats: &CategoryMap,
+    node_id: u32,
+    depth: u16,
+    max_rects: u32,
+) -> Vec<u8> {
+    serialize_strata(&build_strata(tree, cats, node_id, depth, max_rects))
 }
