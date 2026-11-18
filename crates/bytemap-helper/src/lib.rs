@@ -15,6 +15,14 @@
 //! - a rejected or malformed client is disconnected and never takes the
 //!   server down.
 //!
+//! Lifetime (P6.T4a): when started with `--parent <pid>` (the app does
+//! this at spawn time), the helper exits as soon as that process is gone,
+//! checked between clients — an elevated process cannot be killed by the
+//! unelevated app, so the helper notices its parent's death itself. When
+//! the owner starts it by hand (no `--parent`), it serves until killed or
+//! Ctrl+C. The check happens between clients: the helper finishes the
+//! current scan session first.
+//!
 //! Documented limitation, in scope for P6.T2/T3: the `shutdown` flag is
 //! observed between clients; while the helper is blocked waiting for the
 //! next client it stays blocked. The binary is expected to be terminated
@@ -37,22 +45,44 @@ pub mod mft;
 #[cfg(windows)]
 pub mod proto;
 
-/// Serve the named pipe until `shutdown` is observed (between clients).
+/// Serve the named pipe until `shutdown` is observed (between clients), or
+/// — when a parent pid is being watched — until that process is gone.
 ///
 /// Blocks. Errors from pipe creation or connect are returned; client
 /// protocol errors are reported to stderr and the server keeps serving.
-pub fn serve(pipe_name: &str, shutdown: &AtomicBool) -> io::Result<()> {
+pub fn serve(pipe_name: &str, shutdown: &AtomicBool, watch_parent: Option<u32>) -> io::Result<()> {
     #[cfg(windows)]
     {
-        pipe::serve(pipe_name, shutdown)
+        pipe::serve(pipe_name, shutdown, watch_parent)
     }
     #[cfg(not(windows))]
     {
-        let _ = (pipe_name, shutdown);
+        let _ = (pipe_name, shutdown, watch_parent);
         Err(io::Error::new(
             io::ErrorKind::Unsupported,
             "bytemap-helper only serves on Windows",
         ))
+    }
+}
+
+/// Whether `pid` names a running process. `OpenProcess` with
+/// PROCESS_QUERY_LIMITED_INFORMATION fails for a dead pid; access denied
+/// would still mean it exists, but an elevated helper can always query a
+/// lower-integrity process this way. Pid reuse (dead parent's id picked up
+/// by another process) keeps the helper alive — a documented, harmless
+/// limitation.
+#[cfg(windows)]
+fn parent_alive(pid: u32) -> bool {
+    use windows_sys::Win32::Foundation::CloseHandle;
+    use windows_sys::Win32::System::Threading::{OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION};
+
+    unsafe {
+        let handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid);
+        if handle.is_null() {
+            return false;
+        }
+        CloseHandle(handle);
+        true
     }
 }
 
@@ -64,41 +94,117 @@ mod pipe {
     use std::os::windows::ffi::OsStrExt;
     use std::os::windows::io::FromRawHandle;
     use std::sync::atomic::{AtomicBool, Ordering};
+    use std::time::Duration;
 
     use windows_sys::Win32::Foundation::{
-        CloseHandle, ERROR_PIPE_CONNECTED, HANDLE, INVALID_HANDLE_VALUE,
+        CloseHandle, ERROR_PIPE_CONNECTED, GENERIC_READ, GENERIC_WRITE, HANDLE,
+        INVALID_HANDLE_VALUE,
     };
     use windows_sys::Win32::Storage::FileSystem::{
-        FILE_FLAG_FIRST_PIPE_INSTANCE, PIPE_ACCESS_DUPLEX,
+        CreateFileW, FILE_FLAG_FIRST_PIPE_INSTANCE, OPEN_EXISTING, PIPE_ACCESS_DUPLEX,
     };
     use windows_sys::Win32::System::Pipes::{
         ConnectNamedPipe, CreateNamedPipeW, PIPE_READMODE_BYTE, PIPE_TYPE_BYTE, PIPE_WAIT,
     };
 
     use crate::mft;
+    use crate::parent_alive;
     use crate::proto::{self, Frame, HandshakeError};
 
-    /// Serve clients one at a time until `shutdown` is seen between clients.
-    pub(super) fn serve(pipe_name: &str, shutdown: &AtomicBool) -> io::Result<()> {
-        while !shutdown.load(Ordering::SeqCst) {
-            let handle = create_pipe_instance(pipe_name)?;
-            if let Err(err) = accept(handle) {
-                unsafe { CloseHandle(handle) };
-                return Err(err);
+    /// Serve clients one at a time until `shutdown` is seen between
+    /// clients, or — when a parent pid is being watched — until that
+    /// process is gone (P6.T4a). A watcher thread detects the death and
+    /// unblocks the accept loop with a dummy client, because the helper
+    /// spends its idle life blocked in `ConnectNamedPipe` and would never
+    /// reach a between-clients check on its own.
+    pub fn serve(
+        pipe_name: &str,
+        shutdown: &AtomicBool,
+        watch_parent: Option<u32>,
+    ) -> io::Result<()> {
+        std::thread::scope(|scope| {
+            if let Some(pid) = watch_parent {
+                scope.spawn(move || watch_parent_process(pipe_name, pid, shutdown));
             }
-            // The File owns the pipe handle from here on: dropping it closes
-            // the instance. Serve this client to completion before ever
-            // accepting another.
-            let mut stream = unsafe { File::from_raw_handle(handle) };
-            let outcome = run_session(&mut stream);
-            drop(stream);
-            if let Err(err) = outcome {
-                // A rejected or malformed client is already disconnected and
-                // must not take the server down.
-                eprintln!("bytemap-helper: client session ended: {err}");
+            let result = (|| {
+                while !shutdown.load(Ordering::SeqCst) {
+                    let handle = create_pipe_instance(pipe_name)?;
+                    if let Err(err) = accept(handle) {
+                        unsafe { CloseHandle(handle) };
+                        return Err(err);
+                    }
+                    // The File owns the pipe handle from here on: dropping
+                    // it closes the instance. Serve this client to
+                    // completion before ever accepting another.
+                    let mut stream = unsafe { File::from_raw_handle(handle) };
+                    let outcome = run_session(&mut stream);
+                    drop(stream);
+                    if let Err(err) = outcome {
+                        // A rejected or malformed client is already
+                        // disconnected and must not take the server down.
+                        eprintln!("bytemap-helper: client session ended: {err}");
+                    }
+                }
+                Ok(())
+            })();
+            // Release the watcher on every exit path; it exits on its
+            // next poll.
+            shutdown.store(true, Ordering::SeqCst);
+            result
+        })
+    }
+
+    /// Parent watch (P6.T4a): when the launching process dies, set the
+    /// shutdown flag and force one dummy connection so the blocked
+    /// `ConnectNamedPipe` returns and the serve loop can observe the
+    /// flag. A session already in progress finishes first (documented).
+    fn watch_parent_process(pipe_name: &str, pid: u32, shutdown: &AtomicBool) {
+        loop {
+            if shutdown.load(Ordering::SeqCst) {
+                return; // serve ended for another reason
             }
+            if !parent_alive(pid) {
+                // The app that launched us is gone: no stray elevated
+                // helper left behind.
+                shutdown.store(true, Ordering::SeqCst);
+                // The serve loop is usually blocked in accept. A dummy
+                // client ends that wait; the handshake fails fast and
+                // the loop top sees the flag. Retry a few times in case
+                // a session (or instance churn) is in progress.
+                for _ in 0..20 {
+                    match dummy_connect(pipe_name) {
+                        Ok(client) => {
+                            drop(client);
+                            return;
+                        }
+                        Err(_) => std::thread::sleep(Duration::from_millis(250)),
+                    }
+                }
+                return;
+            }
+            std::thread::sleep(Duration::from_millis(250));
         }
-        Ok(())
+    }
+
+    /// One raw client connection for unblocking the accept loop; no
+    /// handshake is sent, so the server session ends at the first read.
+    fn dummy_connect(pipe_name: &str) -> io::Result<File> {
+        let wide: Vec<u16> = OsStr::new(pipe_name).encode_wide().chain(Some(0)).collect();
+        let handle = unsafe {
+            CreateFileW(
+                wide.as_ptr(),
+                GENERIC_READ | GENERIC_WRITE,
+                0,
+                std::ptr::null(),
+                OPEN_EXISTING,
+                0,
+                std::ptr::null_mut(),
+            )
+        };
+        if handle == INVALID_HANDLE_VALUE {
+            return Err(io::Error::last_os_error());
+        }
+        Ok(unsafe { File::from_raw_handle(handle) })
     }
 
     /// One client session: handshake, one scan request, frames back.
@@ -236,7 +342,7 @@ mod tests {
         let shutdown = Arc::new(AtomicBool::new(false));
         let server = {
             let (name, shutdown) = (name.clone(), Arc::clone(&shutdown));
-            std::thread::spawn(move || serve(&name, &shutdown))
+            std::thread::spawn(move || serve(&name, &shutdown, None))
         };
         let mut client = connect(&name);
         client.write_all(&PROTOCOL_MAGIC).unwrap();
@@ -259,7 +365,7 @@ mod tests {
         let shutdown = Arc::new(AtomicBool::new(false));
         let server = {
             let (name, shutdown) = (name.clone(), Arc::clone(&shutdown));
-            std::thread::spawn(move || serve(&name, &shutdown))
+            std::thread::spawn(move || serve(&name, &shutdown, None))
         };
         let mut client = connect(&name);
         client.write_all(b"NOPE").unwrap();
@@ -286,7 +392,7 @@ mod tests {
         let shutdown = Arc::new(AtomicBool::new(false));
         let server = {
             let (name, shutdown) = (name.clone(), Arc::clone(&shutdown));
-            std::thread::spawn(move || serve(&name, &shutdown))
+            std::thread::spawn(move || serve(&name, &shutdown, None))
         };
         let mut client = connect(&name);
         client.write_all(&PROTOCOL_MAGIC).unwrap();
@@ -320,5 +426,61 @@ mod tests {
         shutdown.store(true, Ordering::SeqCst);
         drop(client);
         server.join().unwrap().expect("serve failed");
+    }
+
+    #[test]
+    fn parent_alive_sees_itself_but_not_a_bogus_pid() {
+        assert!(parent_alive(std::process::id()));
+        assert!(!parent_alive(u32::MAX), "u32::MAX is never a valid pid");
+    }
+
+    /// The app's lifetime contract: a helper watching a parent that dies
+    /// mid-session exits by itself after that client session ends.
+    #[test]
+    fn serve_exits_when_the_watched_parent_is_gone() {
+        use std::os::windows::process::CommandExt;
+        // A real, long-enough child process (no console window flash);
+        // its pid is the watched "parent". Killed after the handshake.
+        let mut child = std::process::Command::new("cmd")
+            .args(["/C", "ping", "-n", "30", "127.0.0.1", ">nul"])
+            .creation_flags(0x0800_0000) // CREATE_NO_WINDOW
+            .spawn()
+            .expect("spawn a helper-parent stand-in");
+        let name = unique_pipe("orphan");
+        let shutdown = Arc::new(AtomicBool::new(false));
+        let server = {
+            let (name, shutdown) = (name.clone(), Arc::clone(&shutdown));
+            let pid = child.id();
+            std::thread::spawn(move || serve(&name, &shutdown, Some(pid)))
+        };
+        let mut client = connect(&name);
+        eprintln!("[dbg-client] connected");
+        client.write_all(&PROTOCOL_MAGIC).unwrap();
+        client.write_all(&PROTOCOL_VERSION.to_le_bytes()).unwrap();
+        let mut reply = [0u8; 7];
+        client.read_exact(&mut reply).unwrap();
+        eprintln!("[dbg-client] handshake done");
+        assert_eq!(reply[6], 0);
+
+        // The watched "parent" dies while the helper idles between
+        // clients: the watcher thread must notice, set the shutdown flag,
+        // and unblock the accept loop — serve then exits with Ok without
+        // ever being asked via the flag directly.
+        eprintln!("[dbg-client] killing stand-in");
+        child.kill().expect("kill the stand-in parent");
+        child.wait().expect("reap the stand-in parent");
+        eprintln!("[dbg-client] killed+reaped");
+        // Drop the Child LAST: its open process handle keeps the
+        // terminated process object alive, which makes the watched pid
+        // look alive. The real app closes its runas handle right after
+        // spawn, so production never hits this.
+        drop(child);
+        // Ending the client session is what lets the server reach the
+        // loop-top parent check: it cannot exit while a session is open.
+        drop(client);
+        server
+            .join()
+            .unwrap()
+            .expect("serve must exit when parent is gone");
     }
 }

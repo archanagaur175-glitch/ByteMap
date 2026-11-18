@@ -130,7 +130,7 @@ mod tests {
         let shutdown = Arc::new(AtomicBool::new(false));
         let server = {
             let (name, shutdown) = (name.clone(), Arc::clone(&shutdown));
-            std::thread::spawn(move || serve(&name, &shutdown))
+            std::thread::spawn(move || serve(&name, &shutdown, None))
         };
         let mut client =
             MftClient::connect(&name).expect("connect must retry until the server is up");
