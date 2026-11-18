@@ -31,8 +31,25 @@ Frontend: colors.ts (brief tokens), Legend with category+tier filter chips, orbi
 category, filtered items dimmed, inspector shows category + tier pill. bytemap-actions now has the
 fail-closed can_offer_delete(tier) gate (only Safe/Review; unknown ids refused) — every Phase 5
 action path must call it first. 35 Rust tests + 10 vitest green.
-Next phase NOT started; awaiting owner "APPROVED: Phase 5" (Action Hub; owner code review required
-before phase close per rule 7). Two owner items still pending: dedup default choice, P1.T7 MFT spike.
+Phase 5 COMPLETE + owner-reviewed (2026-11-17, APPROVED: Phase 6). Phase 6 (MFT fast path)
+IN PROGRESS, T0-T3 done (2026-11-18): bytemap-helper crate = elevated bin (requireAdministrator
+manifest via embed-resource .rc trick, bin test=false), pipe server \\.\pipe\bytemap-scan
+(one instance, FILE_FLAG_FIRST_PIPE_INSTANCE), BYM1 v2 protocol (Record gained mtime i64,
+PROTOCOL_VERSION=2). Helper mft.rs streams REAL MFT records (ntfs-reader 0.6.0 as real dep):
+two passes - dirs grouped by parent, then root resolve (case-insensitive from record 5;
+junctioned root refused) + BFS subtree (reparse stops descent) + one Record per non-DOS-alias
+name; root Record FIRST (file_ref==parent_ref, name "" for drive root); logical = sum of
+unnamed $DATA; allocated=0 (app computes); mtime = FILETIME ticks inline (pre-1970 -> 0);
+every failure = terminal Error frame ("cannot open ..."). App side: bytemap-scan::mft_client
+(MftClient, retry ~2s) + mft_tree::build_tree_from_records (out-of-order children via pending
+queue, orphans -> denied, compressed/sparse re-measured post-stream via Tree::set_on_disk,
+root node mirrors walker naming) + tests/mft_parity.rs (walker tree == synthetic-record tree).
+src-tauri: start_scan(root, useMft) -> run_scan_job(use_mft) -> mft_scan (MftClient +
+RecordStream iterator w/ cancel + progress -> build_tree_from_records) with AUTOMATIC walker
+fallback; complete event carries "tier": "walker"/"mft" + "fallbackReason". P1.T7 spike
+(owner, elevated, real C:): 527,391 entries/s = 1.58x the 333k entries/s T4 gate target.
+Next: P6.T4 parity+bench on %TEMP%\bytemap-bench-100k (OWNER runs the elevated helper),
+then P6.GATE.
 
 Environment facts: rustc/cargo 1.97.1 pinned via rust-toolchain.toml (clippy + rustfmt components);
 node 22.22.3 / npm 10.9.8; Tauri CLI comes from npm @tauri-apps/cli (no global install);
@@ -64,5 +81,5 @@ Non-negotiables:
   @types/react, @types/react-dom, @tauri-apps/api, @tauri-apps/cli (dev), vitest (dev);
   Rust: tauri, tauri-build, serde, serde_json (src-tauri only). zustand approved + installed in Phase 2.
 - Check: scripts/check.ps1 (fmt, check, clippy -D warnings, test, npm build, vitest).
-- Open item: P6.T0 signing decision (owner undecided). P1.T7 MFT spike awaits owner approval.
+- Open item: P6.T4 elevated run + P6.GATE (owner starts the helper). P6.T0 signing decision CLOSED (deferred to P9.T3).
 - Windows 11 is the target; Win10 = best-effort flat fallback, untested.
