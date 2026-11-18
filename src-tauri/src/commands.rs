@@ -22,7 +22,7 @@ use bytemap_core::Tree;
 use bytemap_scan::{scan_folder, ScanError, ScanOptions, ScanProgress, ScanStats};
 
 #[cfg(windows)]
-use bytemap_scan::mft_client::{MftClient, Record, WireFrame, DEFAULT_PIPE_NAME};
+use bytemap_scan::mft_client::{is_volume_root, MftClient, Record, WireFrame, DEFAULT_PIPE_NAME};
 #[cfg(windows)]
 use bytemap_scan::mft_tree::build_tree_from_records;
 
@@ -363,6 +363,24 @@ fn scan_with_fallback(
 ) -> ScanOutcome {
     #[cfg(windows)]
     if use_mft {
+        // The MFT tier pays off only on a whole volume (P6.T4d): a folder
+        // subtree costs a whole-$MFT pass either way, so the walker wins
+        // there and this path never prompts for UAC.
+        if !is_volume_root(&path.to_string_lossy()) {
+            return match walker_scan(path, options, progress) {
+                Ok((tree, stats)) => ScanOutcome::Complete(
+                    tree,
+                    stats,
+                    "walker",
+                    Some(
+                        "the MFT tier scans whole volumes only; folder scans use the walker"
+                            .to_owned(),
+                    ),
+                ),
+                Err(ScanError::Cancelled) => ScanOutcome::Cancelled,
+                Err(e) => ScanOutcome::Error(e.to_string()),
+            };
+        }
         // Tier A needs its helper: connect-or-spawn (UAC on first use).
         // Failure to start it is just a fallback reason, not a scan error.
         if let Err(spawn_error) = bytemap_scan::spawn::ensure_helper() {

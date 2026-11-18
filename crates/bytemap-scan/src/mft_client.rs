@@ -25,6 +25,25 @@ pub use bytemap_helper::proto::{Frame as WireFrame, Record};
 /// The pipe the helper serves.
 pub const DEFAULT_PIPE_NAME: &str = bytemap_helper::DEFAULT_PIPE_NAME;
 
+/// Whether `path` names a whole volume (`C:\`, `c:/`, `C:\.\`).
+///
+/// The MFT tier is only worth its elevation on a whole volume (P6.T4d):
+/// on a folder subtree the helper must read the entire `$MFT` anyway, so
+/// it loses to the walker. `start_scan` routes folder scans to the walker
+/// without prompting for UAC.
+pub fn is_volume_root(path: &str) -> bool {
+    let bytes = path.as_bytes();
+    if bytes.len() < 3 || !bytes[0].is_ascii_alphabetic() || bytes[1] != b':' {
+        return false;
+    }
+    if bytes[2] != b'\\' && bytes[2] != b'/' {
+        return false;
+    }
+    path[3..]
+        .split(['\\', '/'])
+        .all(|component| component.is_empty() || component == ".")
+}
+
 #[derive(Debug)]
 pub enum MftClientError {
     /// The helper is not reachable (not running / refused) after retries.
@@ -122,6 +141,19 @@ mod tests {
     use bytemap_helper::serve;
 
     use super::*;
+
+    #[test]
+    fn volume_roots_are_recognized() {
+        assert!(is_volume_root(r"C:\"));
+        assert!(is_volume_root("c:/"));
+        assert!(is_volume_root(r"C:\.\"));
+        assert!(is_volume_root(r"D:\\"));
+        assert!(!is_volume_root(r"C:\Users"));
+        assert!(!is_volume_root("C:"), "drive-relative, not a volume");
+        assert!(!is_volume_root(r"\\server\share"));
+        assert!(!is_volume_root("relative"));
+        assert!(!is_volume_root(""));
+    }
 
     #[test]
     fn client_round_trips_a_scan_request_and_reads_the_reply() {

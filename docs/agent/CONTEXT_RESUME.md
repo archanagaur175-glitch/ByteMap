@@ -49,15 +49,17 @@ RecordStream iterator w/ cancel + progress -> build_tree_from_records) with AUTO
 fallback; complete event carries "tier": "walker"/"mft" + "fallbackReason". P1.T7 spike
 (owner, elevated, real C:): 527,391 entries/s = 1.58x the 333k entries/s T4 gate target.
 T4 OWNER RUN (2026-11-18, elevated): PARITY PASSED exactly (walker == MFT: 101,112 entries,
-files=100,001 dirs=1,111 denied=0, root logical equal). SPEED GATE FAILED (10,264 vs 333k entries/s)
-BY DESIGN, not by a bug: the helper does TWO full 1.73M-record $MFT passes per request (dir index +
-stream) and MFT has no subtree shortcut, so a 100k subtree costs ~2 whole-volume passes (~9.9s);
-one perfect pass would still cap at ~30k/s. 333k/s is only reachable by a WHOLE-VOLUME SINGLE pass.
-Proposed T4d (pending OWNER approval): helper single-pass fast path for drive-root scans only (root
-record 5 synthesized first, stream everything, no index/no second pass); folder scans go to the
-walker without any UAC prompt; parity gate stays on the 100k fixture via the two-pass path; speed
-gate moves to a whole-volume C:\ scan (bench-mft --whole-volume) at >= 333k entries/s. T4a/T4b/T4c
-prep is committed (96857b0, 6a805a8, d7ef858; memory 38735c4).
+files=100,001 dirs=1,111 denied=0, root logical equal). SPEED GATE originally FAILED (10,264 vs 333k)
+by design, not by a bug: the helper did TWO full 1.73M-record $MFT passes per request (dir index +
+stream) and MFT has no subtree shortcut, so a 100k subtree costs ~2 whole-volume passes (~9.9s).
+Owner approved the gate adjustment (option A) and P6.T4d is done: helper single-pass fast path for
+DRIVE ROOTS only (root record 5 first, stream every live record, no index, no second pass); folder
+scans are routed to the walker BEFORE ensure_helper (no UAC prompt, fallbackReason names the rule);
+bench-mft has two modes - parity (default, 100k fixture, exact counts + root logical) and
+--whole-volume [drive] (single-pass stream, speed gate >= 333k entries/s, 1% count-drift sanity,
+no huge tree built). T4a/T4b/T4c committed (96857b0, 6a805a8, d7ef858; memory 38735c4, ba572e4).
+NEXT: OWNER runs `cargo run --release -p bytemap-scan --bin bench-mft -- --whole-volume` elevated
+(UAC), paste [mft]/[walker]/BENCH-MFT; then P6.GATE.
 
 Environment facts: rustc/cargo 1.97.1 pinned via rust-toolchain.toml (clippy + rustfmt components);
 node 22.22.3 / npm 10.9.8; Tauri CLI comes from npm @tauri-apps/cli (no global install);
@@ -89,5 +91,5 @@ Non-negotiables:
   @types/react, @types/react-dom, @tauri-apps/api, @tauri-apps/cli (dev), vitest (dev);
   Rust: tauri, tauri-build, serde, serde_json (src-tauri only). zustand approved + installed in Phase 2.
 - Check: scripts/check.ps1 (fmt, check, clippy -D warnings, test, npm build, vitest).
-- Open item: P6.T4 gate decision (parity passed; speed gate unreachable as written) + T4d, then P6.GATE. P6.T0 signing decision CLOSED (deferred to P9.T3).
+- Open item: P6.T4 whole-volume speed gate (owner elevated run) + P6.GATE. P6.T0 signing decision CLOSED (deferred to P9.T3).
 - Windows 11 is the target; Win10 = best-effort flat fallback, untested.

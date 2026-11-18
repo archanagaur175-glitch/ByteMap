@@ -271,6 +271,53 @@ fn mft_requested_without_helper_falls_back_to_the_walker() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
+/// Tier routing (P6.T4d): the MFT tier is a whole-volume tier. A folder
+/// scan with `use_mft = true` is routed straight to the walker, with a
+/// reason that says so — and therefore never tries to spawn the elevated
+/// helper (no UAC prompt for a folder scan).
+#[test]
+fn mft_requested_for_a_folder_is_routed_to_the_walker() {
+    let _scan_guard = SCAN_LOCK.lock().unwrap();
+
+    let dir = std::env::temp_dir().join("bytemap-flow-folder-route");
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(dir.join("b.bin"), vec![0u8; 4321]).unwrap();
+
+    let shared: SharedSession = Arc::new(Mutex::new(bytemap_lib::state::Session::default()));
+    let messages: Arc<Mutex<Vec<InvokeResponseBody>>> = Arc::new(Mutex::new(Vec::new()));
+    let collector = Arc::clone(&messages);
+    let channel = Channel::new(move |body: InvokeResponseBody| {
+        collector.lock().unwrap().push(body);
+        Ok(())
+    });
+
+    run_scan_job(dir.clone(), ScanOptions::default(), true, shared, channel);
+
+    let parsed: Vec<Value> = messages
+        .lock()
+        .unwrap()
+        .iter()
+        .map(|body| match body {
+            InvokeResponseBody::Json(s) => serde_json::from_str::<Value>(s).unwrap(),
+            InvokeResponseBody::Raw(_) => panic!("unexpected raw channel message"),
+        })
+        .collect();
+
+    let complete = parsed.last().expect("at least one event");
+    assert_eq!(complete["type"], "complete");
+    assert_eq!(complete["tier"], "walker", "folder scans are walker-only");
+    let reason = complete["fallbackReason"]
+        .as_str()
+        .expect("the routing must be explained to the UI");
+    assert!(
+        reason.contains("whole volumes"),
+        "routing reason must name the whole-volume rule: {reason}"
+    );
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
 /// Minimal little-endian reader for the bytemap-core view format.
 struct ViewDecoder<'a> {
     buf: &'a [u8],

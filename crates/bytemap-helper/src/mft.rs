@@ -1,7 +1,16 @@
 //! Real MFT streaming (P6.T3a): the elevated half of the scan.
 //!
-//! One scan request runs TWO passes over the volume's `$MFT` (each pass is
-//! one [`MftScan`], like the P1.T7 spike):
+//! Two request shapes (P6.T4d):
+//!
+//! - **Whole volume** (`C:\`): ONE pass over `$MFT`, the fast path. The
+//!   root record is synthesized first, then every live entry is streamed
+//!   as it is read — no index, no second pass. This is the shape the
+//!   speed gate measures (~527k entries/s on the P1.T7 spike machine)
+//!   and the only shape the product uses: the app routes folder scans to
+//!   the walker, which is faster on a subtree anyway.
+//! - **Subtree** (`C:\Users\...`, parity harness): TWO passes, because
+//!   `$MFT` offers no subtree shortcut and the root first has to be
+//!   resolved by name:
 //!
 //! 1. **Directory index**: stream every live directory and remember
 //!    `(own number, best name, parent number, reparse)` grouped by parent.
@@ -26,7 +35,7 @@
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::io::{Read, Write};
 
-use ntfs_reader::{MftScan, Volume};
+use ntfs_reader::{MftScan, NtfsFile, Volume};
 
 use crate::proto::{self, Frame, Record};
 
@@ -36,6 +45,13 @@ pub(crate) struct ScanTarget {
     device: String,
     /// Components below the drive root, e.g. `["Users", "archa"]`.
     components: Vec<String>,
+}
+
+impl ScanTarget {
+    /// A drive root (`C:\`): the single-pass whole-volume path applies.
+    fn is_whole_volume(&self) -> bool {
+        self.components.is_empty()
+    }
 }
 
 /// Parse a user-facing scan root into a volume device + components.
@@ -155,7 +171,86 @@ pub(super) fn handle_scan_request<S: Read + Write>(stream: &mut S, path: &str) {
 
 fn run_scan<S: Read + Write>(stream: &mut S, path: &str) -> Result<(), String> {
     let target = volume_device(path).ok_or_else(|| format!("not a local drive path: {path}"))?;
+    if target.is_whole_volume() {
+        return run_volume_scan(stream, &target);
+    }
+    run_subtree_scan(stream, &target, path)
+}
 
+/// The fast path (P6.T4d): one `$MFT` pass, every live record streamed.
+///
+/// No directory index is needed because the root is the volume root
+/// itself, and no membership set is needed because every entry is inside
+/// the request. The root record frame comes first for the same contract
+/// as the subtree path: the app learns the root's record number and
+/// attaches children by masked parent number.
+fn run_volume_scan<S: Read + Write>(stream: &mut S, target: &ScanTarget) -> Result<(), String> {
+    let volume =
+        Volume::new(&target.device).map_err(|e| format!("cannot open {}: {e}", target.device))?;
+    let mut scan =
+        MftScan::new(volume).map_err(|e| format!("cannot read {}: {e}", target.device))?;
+
+    proto::write_frame(
+        stream,
+        &Frame::Record(Record {
+            file_ref: ntfs_reader::ROOT_RECORD,
+            parent_ref: ntfs_reader::ROOT_RECORD,
+            logical_size: 0,
+            allocated_size: 0,
+            attributes: FILE_ATTRIBUTE_DIRECTORY,
+            mtime: 0,
+            // Drive root: the app mirrors the walker's naming rule.
+            name: String::new(),
+        }),
+    )
+    .map_err(|e| e.to_string())?;
+
+    let mut records = 0u64;
+    let mut logical_bytes = 0u64;
+    while let Some(chunk) = scan.next_chunk().map_err(|e| e.to_string())? {
+        for file in chunk.files() {
+            let fields = entry_fields(&file);
+            let file_ref = file.reference();
+            for name in file.names() {
+                if name.is_dos_alias() {
+                    continue; // 8.3 alias of a sibling Win32 name, not a link
+                }
+                let record = Record {
+                    file_ref,
+                    parent_ref: name.parent_reference(),
+                    logical_size: fields.logical,
+                    allocated_size: 0, // app computes from the cluster size
+                    attributes: fields.attrs,
+                    mtime: fields.mtime,
+                    name: name.to_os_string().to_string_lossy().into_owned(),
+                };
+                logical_bytes += fields.logical;
+                records += 1;
+                proto::write_frame(stream, &Frame::Record(record)).map_err(|e| e.to_string())?;
+            }
+        }
+    }
+
+    proto::write_frame(
+        stream,
+        &Frame::Done {
+            entries: records,
+            logical_bytes,
+        },
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// The parity path (P6.T3): resolve a folder root by name, then stream its
+/// subtree across two passes. Used by the parity benchmark; the product
+/// sends folder scans to the walker, which needs no elevation and is
+/// faster on a subtree (a subtree costs whole-volume passes here).
+fn run_subtree_scan<S: Read + Write>(
+    stream: &mut S,
+    target: &ScanTarget,
+    path: &str,
+) -> Result<(), String> {
     // Pass 1: the directory index.
     let volume =
         Volume::new(&target.device).map_err(|e| format!("cannot open {}: {e}", target.device))?;
@@ -207,6 +302,62 @@ fn run_scan<S: Read + Write>(stream: &mut S, path: &str) -> Result<(), String> {
 /// (records sent, logical bytes of files sent)
 type Tally = (u64, u64);
 
+/// Per-record facts shared by both streaming paths: the walker-equivalent
+/// logical size, the Win32 attributes, and the FILETIME mtime.
+struct EntryFields {
+    logical: u64,
+    attrs: u32,
+    mtime: i64,
+}
+
+fn entry_fields(file: &NtfsFile) -> EntryFields {
+    let is_dir = file.is_directory();
+    // Size of the default (unnamed) data stream: the walker's logical
+    // size for a file. Split across extension records, the later extents
+    // carry 0, so summing is exact.
+    let logical = if is_dir {
+        0
+    } else {
+        file.data_streams()
+            .filter(|s| s.name.is_none())
+            .map(|s| s.size)
+            .sum()
+    };
+    // Attributes and mtime once per record. The directory bit is forced
+    // on for dirs: the app decides "is a directory" from it, and
+    // $STANDARD_INFORMATION does not guarantee it is set.
+    let (attrs, mtime) = match file.standard_information() {
+        Some(si) => {
+            let mut attrs = si.file_attributes();
+            if is_dir {
+                attrs |= FILE_ATTRIBUTE_DIRECTORY;
+            }
+            // FILETIME ticks (100 ns since 1601) from the modification
+            // time — the same encoding and pre-1970 rule (collapse to 0)
+            // as the walker's `metadata::filetime`. No new dependency: the
+            // type is ntfs-reader's, converted inline.
+            let mtime = {
+                const EPOCH_DIFF: i64 = 116_444_736_000_000_000;
+                let nanos = si.modified().unix_timestamp_nanos();
+                if nanos < 0 {
+                    0
+                } else {
+                    i64::try_from(nanos / 100)
+                        .unwrap_or(i64::MAX)
+                        .saturating_add(EPOCH_DIFF)
+                }
+            };
+            (attrs, mtime)
+        }
+        None => (if is_dir { FILE_ATTRIBUTE_DIRECTORY } else { 0 }, 0),
+    };
+    EntryFields {
+        logical,
+        attrs,
+        mtime,
+    }
+}
+
 /// Pass 2: stream one `Record` per name inside the subtree, then hand the
 /// caller back the tally for the `Done` frame.
 fn stream_records<S: Read + Write>(
@@ -218,47 +369,7 @@ fn stream_records<S: Read + Write>(
     let mut logical_bytes = 0u64;
     while let Some(chunk) = scan.next_chunk().map_err(|e| e.to_string())? {
         for file in chunk.files() {
-            let is_dir = file.is_directory();
-            // Size of the default (unnamed) data stream: the walker's
-            // logical size for a file. Split across extension records, the
-            // later extents carry 0, so summing is exact.
-            let logical = if is_dir {
-                0
-            } else {
-                file.data_streams()
-                    .filter(|s| s.name.is_none())
-                    .map(|s| s.size)
-                    .sum()
-            };
-            // Attributes and mtime once per record. The directory bit is
-            // forced on for dirs: the app decides "is a directory" from it,
-            // and $STANDARD_INFORMATION does not guarantee it is set.
-            let (attrs, mtime) = match file.standard_information() {
-                Some(si) => {
-                    let mut attrs = si.file_attributes();
-                    if is_dir {
-                        attrs |= FILE_ATTRIBUTE_DIRECTORY;
-                    }
-                    // FILETIME ticks (100 ns since 1601) from the
-                    // modification time — the same encoding and pre-1970
-                    // rule (collapse to 0) as the walker's
-                    // `metadata::filetime`. No new dependency: the type is
-                    // ntfs-reader's, converted inline.
-                    let mtime = {
-                        const EPOCH_DIFF: i64 = 116_444_736_000_000_000;
-                        let nanos = si.modified().unix_timestamp_nanos();
-                        if nanos < 0 {
-                            0
-                        } else {
-                            i64::try_from(nanos / 100)
-                                .unwrap_or(i64::MAX)
-                                .saturating_add(EPOCH_DIFF)
-                        }
-                    };
-                    (attrs, mtime)
-                }
-                None => (if is_dir { FILE_ATTRIBUTE_DIRECTORY } else { 0 }, 0),
-            };
+            let fields = entry_fields(&file);
             let file_ref = file.reference();
             for name in file.names() {
                 if name.is_dos_alias() {
@@ -271,13 +382,13 @@ fn stream_records<S: Read + Write>(
                 let record = Record {
                     file_ref,
                     parent_ref: name.parent_reference(),
-                    logical_size: logical,
+                    logical_size: fields.logical,
                     allocated_size: 0, // app computes from the cluster size
-                    attributes: attrs,
-                    mtime,
+                    attributes: fields.attrs,
+                    mtime: fields.mtime,
                     name: name.to_os_string().to_string_lossy().into_owned(),
                 };
-                logical_bytes += logical;
+                logical_bytes += fields.logical;
                 records += 1;
                 proto::write_frame(stream, &Frame::Record(record)).map_err(|e| e.to_string())?;
             }
@@ -385,37 +496,61 @@ mod tests {
     }
 
     #[test]
+    fn drive_roots_take_the_single_pass_path() {
+        assert!(volume_device(r"C:\").unwrap().is_whole_volume());
+        assert!(volume_device("D:/").unwrap().is_whole_volume());
+        assert!(!volume_device(r"C:\Users").unwrap().is_whole_volume());
+    }
+
+    #[test]
     fn session_replies_with_an_error_frame_for_a_bad_volume() {
         // Q: is assumed to be a nonexistent drive on this machine (any
         // letter the owner's box does not use works; update if needed).
+        let mut stream = scan_session(r"Q:\fixture");
+        super::super::pipe::run_session(&mut stream).expect("session ends normally");
+        assert_error_frame(&stream.outgoing, "cannot open");
+    }
+
+    /// The whole-volume fast path fails the same way on the wire.
+    #[test]
+    fn volume_scan_replies_with_an_error_frame_for_a_bad_volume() {
+        let mut stream = scan_session(r"Q:\");
+        super::super::pipe::run_session(&mut stream).expect("session ends normally");
+        assert_error_frame(&stream.outgoing, "cannot open");
+    }
+
+    /// Handshake + one scan request for `path`, ready for `run_session`.
+    fn scan_session(path: &str) -> DuplexStream {
         let mut incoming = Vec::new();
         incoming.extend_from_slice(&crate::PROTOCOL_MAGIC);
         incoming.extend_from_slice(&crate::PROTOCOL_VERSION.to_le_bytes());
         let mut request = Vec::new();
         request.push(crate::proto::OP_SCAN_REQUEST);
-        request.extend_from_slice(&(r"Q:\fixture".len() as u16).to_le_bytes());
-        request.extend_from_slice(r"Q:\fixture".as_bytes());
+        request.extend_from_slice(&(path.len() as u16).to_le_bytes());
+        request.extend_from_slice(path.as_bytes());
         let wire_len = (request.len() as u32).to_le_bytes();
         incoming.extend_from_slice(&wire_len);
         incoming.extend_from_slice(&request);
-
-        let mut stream = DuplexStream {
+        DuplexStream {
             incoming: Cursor::new(incoming),
             outgoing: Vec::new(),
-        };
-        super::super::pipe::run_session(&mut stream).expect("session ends normally");
-        // Outgoing: handshake reply (7 bytes) + one frame.
-        assert_eq!(&stream.outgoing[0..4], &crate::PROTOCOL_MAGIC);
-        assert_eq!(stream.outgoing[6], 0, "handshake accepted");
-        let frame_len = u32::from_le_bytes(stream.outgoing[7..11].try_into().unwrap()) as usize;
-        let payload = &stream.outgoing[11..11 + frame_len];
+        }
+    }
+
+    /// Outgoing must be: handshake reply (7 bytes) + one terminal error
+    /// frame whose message contains `needle`.
+    fn assert_error_frame(outgoing: &[u8], needle: &str) {
+        assert_eq!(&outgoing[0..4], &crate::PROTOCOL_MAGIC);
+        assert_eq!(outgoing[6], 0, "handshake accepted");
+        let frame_len = u32::from_le_bytes(outgoing[7..11].try_into().unwrap()) as usize;
+        let payload = &outgoing[11..11 + frame_len];
         assert_eq!(payload[0], OP_ERROR, "terminal error frame");
         let message = String::from_utf8_lossy(
             &payload[3..3 + u16::from_le_bytes([payload[1], payload[2]]) as usize],
         );
         assert!(
-            message.contains("cannot open"),
-            "error must name the volume: {message}"
+            message.contains(needle),
+            "error must contain {needle:?}: {message}"
         );
     }
 
