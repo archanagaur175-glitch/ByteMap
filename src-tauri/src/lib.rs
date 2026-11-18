@@ -14,6 +14,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::start_scan,
             commands::cancel_scan,
+            commands::ensure_helper,
             commands::node_view,
             commands::node_orbit,
             commands::bench_report,

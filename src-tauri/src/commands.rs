@@ -363,6 +363,17 @@ fn scan_with_fallback(
 ) -> ScanOutcome {
     #[cfg(windows)]
     if use_mft {
+        // Tier A needs its helper: connect-or-spawn (UAC on first use).
+        // Failure to start it is just a fallback reason, not a scan error.
+        if let Err(spawn_error) = bytemap_scan::spawn::ensure_helper() {
+            return match walker_scan(path, options, progress) {
+                Ok((tree, stats)) => {
+                    ScanOutcome::Complete(tree, stats, "walker", Some(spawn_error))
+                }
+                Err(ScanError::Cancelled) => ScanOutcome::Cancelled,
+                Err(e) => ScanOutcome::Error(e.to_string()),
+            };
+        }
         match mft_scan(path, shared, progress) {
             Ok((tree, stats)) => return ScanOutcome::Complete(tree, stats, "mft", None),
             Err(MftFailure::Cancelled) => return ScanOutcome::Cancelled,
@@ -526,6 +537,22 @@ pub fn cancel_scan(session: State<'_, SharedSession>) {
         .unwrap()
         .cancel
         .store(true, Ordering::Relaxed);
+}
+
+/// Make sure the elevated helper is serving (P6.T4b): connect first, and
+/// if no helper answers, start one with the `runas` verb (one UAC prompt
+/// per session). `start_scan` with `useMft` calls the same function.
+#[tauri::command]
+pub fn ensure_helper() -> Result<Value, String> {
+    #[cfg(windows)]
+    {
+        let status = bytemap_scan::spawn::ensure_helper()?;
+        Ok(json!({ "status": status.as_str() }))
+    }
+    #[cfg(not(windows))]
+    {
+        Err("the MFT helper is Windows-only".to_owned())
+    }
 }
 
 /// Owner/agent-visible perf report: prints the bench result line to the

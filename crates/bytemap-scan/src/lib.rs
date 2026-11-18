@@ -7,6 +7,8 @@ pub mod metadata;
 pub mod mft_client;
 #[cfg(windows)]
 pub mod mft_tree;
+#[cfg(windows)]
+pub mod spawn;
 pub mod walker;
 
 pub use error::ScanError;
