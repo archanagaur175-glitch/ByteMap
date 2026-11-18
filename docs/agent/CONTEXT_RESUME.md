@@ -58,8 +58,14 @@ scans are routed to the walker BEFORE ensure_helper (no UAC prompt, fallbackReas
 bench-mft has two modes - parity (default, 100k fixture, exact counts + root logical) and
 --whole-volume [drive] (single-pass stream, speed gate >= 333k entries/s, 1% count-drift sanity,
 no huge tree built). T4a/T4b/T4c committed (96857b0, 6a805a8, d7ef858; memory 38735c4, ba572e4).
-NEXT: OWNER runs `cargo run --release -p bytemap-scan --bin bench-mft -- --whole-volume` elevated
-(UAC), paste [mft]/[walker]/BENCH-MFT; then P6.GATE.
+PHASE 6 CLOSED 2026-11-18 (owner-approved Phase 7 in the same turn). T4 speed number DEFERRED, not
+passed: it is OPEN QUESTION Q4 (docs/agent/OPEN_QUESTIONS.md) with the exact elevated command; parity
+passed exactly. Never claim the MFT speed gate as met until Q4 is answered.
+PHASE 7 IN PROGRESS (approved 2026-11-18): T1 Strata treemap (Rust squarified nested layout + packed
+LE command + Canvas2D view + Orbit/Strata switcher), T2 Nebula (owner choice: build or skip),
+T3 Mica/acrylic + glass 24px + 180ms motion + dark/light themes (window-vibrancy is the approved
+Phase 7-only dep - verify version), T4 token match + reduced-motion gate. Tokens are fixed by
+PROJECT_BRIEF.md line 28.
 
 Environment facts: rustc/cargo 1.97.1 pinned via rust-toolchain.toml (clippy + rustfmt components);
 node 22.22.3 / npm 10.9.8; Tauri CLI comes from npm @tauri-apps/cli (no global install);
