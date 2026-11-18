@@ -41,7 +41,7 @@ fn full_flow_scan_progress_complete_view() {
     });
 
     let options = ScanOptions::default();
-    run_scan_job(root, options, Arc::clone(&shared), channel);
+    run_scan_job(root, options, false, Arc::clone(&shared), channel);
 
     // --- every message parses as JSON ---
     let raw = messages.lock().unwrap();
@@ -137,7 +137,7 @@ fn basket_flow_on_temp_fixture() {
         Ok(())
     });
     let options = ScanOptions::default();
-    run_scan_job(dir.clone(), options, Arc::clone(&shared), channel);
+    run_scan_job(dir.clone(), options, false, Arc::clone(&shared), channel);
 
     // Loud structural check: the scan must complete (an error event leaves
     // the tree empty and every later step meaningless).
@@ -208,6 +208,65 @@ fn basket_flow_on_temp_fixture() {
         items.iter().map(|i| &i.path).collect::<Vec<_>>()
     );
     drop(s);
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// Tier A fallback (P6.T3c): with NO helper running, `use_mft = true` must
+/// transparently fall back to the walker — the complete event carries
+/// `"tier": "walker"` plus a non-empty `"fallbackReason"`, and the session
+/// tree is still valid (view_bytes decodes).
+#[test]
+fn mft_requested_without_helper_falls_back_to_the_walker() {
+    let _scan_guard = SCAN_LOCK.lock().unwrap();
+
+    let dir = std::env::temp_dir().join("bytemap-flow-fallback");
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(dir.join("a.bin"), vec![0u8; 12345]).unwrap();
+
+    let shared: SharedSession = Arc::new(Mutex::new(bytemap_lib::state::Session::default()));
+    let messages: Arc<Mutex<Vec<InvokeResponseBody>>> = Arc::new(Mutex::new(Vec::new()));
+    let collector = Arc::clone(&messages);
+    let channel = Channel::new(move |body: InvokeResponseBody| {
+        collector.lock().unwrap().push(body);
+        Ok(())
+    });
+
+    let options = ScanOptions::default();
+    run_scan_job(dir.clone(), options, true, Arc::clone(&shared), channel);
+
+    let parsed: Vec<Value> = messages
+        .lock()
+        .unwrap()
+        .iter()
+        .map(|body| match body {
+            InvokeResponseBody::Json(s) => serde_json::from_str::<Value>(s).unwrap(),
+            InvokeResponseBody::Raw(_) => panic!("unexpected raw channel message"),
+        })
+        .collect();
+
+    let complete = parsed.last().expect("at least one event");
+    assert_eq!(complete["type"], "complete", "fallback must still complete");
+    assert_eq!(
+        complete["tier"], "walker",
+        "no helper means the walker tier: {complete}"
+    );
+    let reason = complete["fallbackReason"]
+        .as_str()
+        .expect("fallback must carry a reason");
+    assert!(!reason.is_empty(), "reason must be non-empty");
+    eprintln!("fallbackReason: {reason}");
+
+    // The fallback tree is a real scan: the file is there.
+    {
+        let s = shared.lock().unwrap();
+        assert!(!s.running, "session idle after complete");
+        assert_eq!(s.root_path, dir, "root anchored to the scanned path");
+        let root = s.tree.root().unwrap();
+        let found = s.tree.children(root).any(|id| s.tree.name(id) == "a.bin");
+        assert!(found, "fallback tree must contain the fixture file");
+    }
 
     let _ = std::fs::remove_dir_all(&dir);
 }

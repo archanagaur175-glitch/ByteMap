@@ -18,7 +18,13 @@ use bytemap_actions::{
     archive_items, restore_archive, undo_recycle, AddError, BasketItem, StaleStatus,
 };
 use bytemap_core::categorizer::category;
-use bytemap_scan::{scan_folder, ScanError, ScanOptions, ScanProgress};
+use bytemap_core::Tree;
+use bytemap_scan::{scan_folder, ScanError, ScanOptions, ScanProgress, ScanStats};
+
+#[cfg(windows)]
+use bytemap_scan::mft_client::{MftClient, Record, WireFrame, DEFAULT_PIPE_NAME};
+#[cfg(windows)]
+use bytemap_scan::mft_tree::build_tree_from_records;
 
 use crate::pathres;
 use crate::state::SharedSession;
@@ -237,6 +243,7 @@ fn progress_event(p: ScanProgress) -> Value {
 #[tauri::command]
 pub fn start_scan(
     root: String,
+    use_mft: Option<bool>,
     session: State<'_, SharedSession>,
     on_event: Channel,
 ) -> Result<(), String> {
@@ -260,18 +267,28 @@ pub fn start_scan(
         cancel: Some(cancel),
         ..Default::default()
     };
+    // Tier A (elevated MFT helper) is opt-in per scan; the frontend sends
+    // `useMft`. Default off until the helper is spawned by the app itself
+    // (P6.T4): a manually started helper still enables the fast tier.
+    let use_mft = use_mft.unwrap_or(false);
 
     std::thread::spawn(move || {
-        run_scan_job(path, options, shared, on_event);
+        run_scan_job(path, options, use_mft, shared, on_event);
     });
     Ok(())
 }
 /// The scan job itself, separated from the command so integration tests can
 /// drive the whole flow (start -> throttled progress -> complete -> view)
 /// without a webview.
+///
+/// `use_mft` requests the Tier A scan through the elevated helper. ANY MFT
+/// failure (helper not running, protocol/stream error, tree build error)
+/// automatically falls back to the walker; the complete event then carries
+/// `"tier": "walker"` plus a `"fallbackReason"` string.
 pub fn run_scan_job(
     path: std::path::PathBuf,
     options: ScanOptions,
+    use_mft: bool,
     shared: SharedSession,
     on_event: Channel,
 ) {
@@ -290,11 +307,11 @@ pub fn run_scan_job(
             let _ = progress_channel.send(body);
         }
     };
-    let mut tree = bytemap_core::Tree::new();
-    let result = scan_folder(&path, &mut tree, &options, Some(progress));
 
-    let event = match result {
-        Ok(stats) => {
+    let outcome = scan_with_fallback(&path, &options, use_mft, &shared, Some(progress));
+
+    let event = match outcome {
+        ScanOutcome::Complete(tree, stats, tier, fallback) => {
             let root_id = tree.root();
             // Categories/tiers computed once per completed scan (Phase 4).
             let cats = bytemap_core::categorize(&tree, &bytemap_core::Rules::default_rules());
@@ -302,26 +319,204 @@ pub fn run_scan_job(
             s.tree = tree;
             s.cats = cats;
             s.running = false;
-            json!({
+            let mut event = json!({
                 "type": "complete",
+                "tier": tier,
                 "rootId": root_id,
                 "files": stats.files,
                 "dirs": stats.dirs,
                 "denied": stats.denied,
                 "elapsedMs": stats.elapsed_ms as u64,
-            })
+            });
+            if let Some(reason) = fallback {
+                event["fallbackReason"] = json!(reason);
+            }
+            event
         }
-        Err(ScanError::Cancelled) => {
+        ScanOutcome::Cancelled => {
             shared.lock().unwrap().running = false;
             json!({ "type": "cancelled" })
         }
-        Err(e) => {
+        ScanOutcome::Error(message) => {
             shared.lock().unwrap().running = false;
-            json!({ "type": "error", "message": e.to_string() })
+            json!({ "type": "error", "message": message })
         }
     };
     let body = InvokeResponseBody::Json(event.to_string());
     let _ = on_event.send(body);
+}
+
+/// Result of one scan attempt, already tier-tagged.
+enum ScanOutcome {
+    Complete(Tree, ScanStats, &'static str, Option<String>),
+    Cancelled,
+    Error(String),
+}
+
+/// Tier A attempt, walker fallback: the front door of `run_scan_job`.
+fn scan_with_fallback(
+    path: &std::path::Path,
+    options: &ScanOptions,
+    use_mft: bool,
+    shared: &SharedSession,
+    progress: Option<&dyn Fn(ScanProgress)>,
+) -> ScanOutcome {
+    #[cfg(windows)]
+    if use_mft {
+        match mft_scan(path, shared, progress) {
+            Ok((tree, stats)) => return ScanOutcome::Complete(tree, stats, "mft", None),
+            Err(MftFailure::Cancelled) => return ScanOutcome::Cancelled,
+            Err(MftFailure::Failed(reason)) => {
+                // The walker takes over; the reason travels to the UI.
+                return match walker_scan(path, options, progress) {
+                    Ok((tree, stats)) => ScanOutcome::Complete(tree, stats, "walker", Some(reason)),
+                    Err(ScanError::Cancelled) => ScanOutcome::Cancelled,
+                    Err(e) => ScanOutcome::Error(e.to_string()),
+                };
+            }
+        }
+    }
+    let _ = (use_mft, shared); // non-Windows: the MFT tier does not exist
+    match walker_scan(path, options, progress) {
+        Ok((tree, stats)) => ScanOutcome::Complete(tree, stats, "walker", None),
+        Err(ScanError::Cancelled) => ScanOutcome::Cancelled,
+        Err(e) => ScanOutcome::Error(e.to_string()),
+    }
+}
+
+/// Tier B attempt: the reference scanner (jwalk + rayon).
+fn walker_scan(
+    path: &std::path::Path,
+    options: &ScanOptions,
+    progress: Option<&dyn Fn(ScanProgress)>,
+) -> Result<(Tree, ScanStats), ScanError> {
+    let mut tree = Tree::new();
+    let stats = scan_folder(path, &mut tree, options, progress)?;
+    Ok((tree, stats))
+}
+
+/// Why the MFT tier gave up; the walker takes over with this reason.
+#[cfg(windows)]
+enum MftFailure {
+    Cancelled,
+    Failed(String),
+}
+
+/// Tier A attempt: connect to the elevated helper, stream its Record
+/// frames, build the arena tree. Any failure becomes `MftFailure` — the
+/// helper being absent is the normal case, not a panic path.
+#[cfg(windows)]
+fn mft_scan(
+    path: &std::path::Path,
+    shared: &SharedSession,
+    progress: Option<&dyn Fn(ScanProgress)>,
+) -> Result<(Tree, ScanStats), MftFailure> {
+    let started = Instant::now();
+    let cancel = shared.lock().unwrap().cancel.clone();
+
+    // 1. Connect + request. Unreachable helper = the everyday fallback.
+    let mut client =
+        MftClient::connect(DEFAULT_PIPE_NAME).map_err(|e| MftFailure::Failed(e.to_string()))?;
+    let root_text = path.to_string_lossy().into_owned();
+    client
+        .request_scan(&root_text)
+        .map_err(|e| MftFailure::Failed(format!("helper pipe write failed: {e}")))?;
+
+    // 2. Stream + build: the builder consumes the frame iterator directly,
+    //    so records are neither buffered nor visited twice. Progress and
+    //    the cooperative cancel flag are checked inside the iterator.
+    let mut records = RecordStream {
+        client,
+        cancel,
+        error: None,
+        cancelled: false,
+        done: false,
+        emitted: 0,
+        since_progress: 0,
+        stream_start: Instant::now(),
+        progress,
+    };
+    let built = build_tree_from_records(path, &mut records);
+    if records.cancelled {
+        return Err(MftFailure::Cancelled);
+    }
+    if let Some(error) = records.error.take() {
+        return Err(MftFailure::Failed(error));
+    }
+    let (tree, mut stats) = built.map_err(|e| MftFailure::Failed(e.to_string()))?;
+    stats.elapsed_ms = started.elapsed().as_millis();
+    Ok((tree, stats))
+}
+
+/// Iterator over the helper's Record frames. Stops on `Done`, `Error`,
+/// an unexpected frame, an IO error or the cancel flag; the reason is
+/// stored in `error` (None after a clean `Done`, `cancelled` set when the
+/// caller asked to cancel). Emits throttled-caller progress every 8192
+/// records.
+#[cfg(windows)]
+struct RecordStream<'a> {
+    client: MftClient,
+    cancel: Arc<std::sync::atomic::AtomicBool>,
+    error: Option<String>,
+    cancelled: bool,
+    done: bool,
+    emitted: u64,
+    since_progress: u64,
+    stream_start: Instant,
+    progress: Option<&'a dyn Fn(ScanProgress)>,
+}
+
+#[cfg(windows)]
+impl Iterator for RecordStream<'_> {
+    type Item = Record;
+
+    fn next(&mut self) -> Option<Record> {
+        if self.done {
+            return None;
+        }
+        if self.cancel.load(std::sync::atomic::Ordering::Relaxed) {
+            self.cancelled = true;
+            self.done = true;
+            return None;
+        }
+        match self.client.next_frame() {
+            Ok(WireFrame::Record(record)) => {
+                self.emitted += 1;
+                self.since_progress += 1;
+                if self.since_progress >= 8192 {
+                    self.since_progress = 0;
+                    if let Some(progress) = self.progress {
+                        progress(ScanProgress {
+                            files: self.emitted,
+                            dirs: 0,
+                            denied: 0,
+                            elapsed_ms: self.stream_start.elapsed().as_millis(),
+                        });
+                    }
+                }
+                Some(record)
+            }
+            Ok(WireFrame::Done { .. }) => {
+                self.done = true;
+                None
+            }
+            Ok(WireFrame::Error { message }) => {
+                self.error = Some(message);
+                self.done = true;
+                None
+            }
+            Ok(other) => {
+                self.error = Some(format!("unexpected frame from helper: {other:?}"));
+                self.done = true;
+                None
+            }
+            Err(e) => {
+                self.error = Some(format!("helper pipe read failed: {e}"));
+                self.done = true;
+                None
+            }
+        }
+    }
 }
 
 #[tauri::command]

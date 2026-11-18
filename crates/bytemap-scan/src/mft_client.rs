@@ -18,6 +18,10 @@ use windows_sys::Win32::System::Pipes::WaitNamedPipeW;
 
 use bytemap_helper::proto::{self, Frame, HandshakeError};
 
+/// Re-exported so downstream crates (src-tauri) can consume Record streams
+/// without depending on bytemap-helper directly.
+pub use bytemap_helper::proto::{Frame as WireFrame, Record};
+
 /// The pipe the helper serves.
 pub const DEFAULT_PIPE_NAME: &str = bytemap_helper::DEFAULT_PIPE_NAME;
 
