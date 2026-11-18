@@ -114,6 +114,42 @@ body {
   gap: 6px;
 }
 
+/* Orbit / Strata switcher (Phase 7). */
+.view-switch {
+  display: flex;
+  gap: 4px;
+  align-self: flex-start;
+  padding: 2px;
+  border: 1px solid #2a3350;
+  border-radius: 12px;
+  background: var(--panel);
+}
+
+.view-tab {
+  padding: 4px 16px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.view-tab:hover {
+  color: var(--text);
+}
+
+.view-tab.active {
+  background: #1c2740;
+  color: var(--text);
+}
+
+.view-tab:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
 .orbit-wrap {
   flex: 1;
   min-width: 0;

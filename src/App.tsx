@@ -1,5 +1,6 @@
 import { TreeList } from "./TreeList";
 import { OrbitView } from "./OrbitView";
+import { StrataView } from "./StrataView";
 import { OrbitBench } from "./OrbitBench";
 import { Legend } from "./Legend";
 import { ActionHub } from "./ActionHub";
@@ -11,8 +12,8 @@ export default function App() {
     return <OrbitBench />;
   }
   const {
-    folder, phase, progress, error, rootId, view, selectedId, tailName,
-    setFolder, startScan, cancelScan, openNode,
+    folder, phase, progress, error, rootId, view, viewMode, selectedId, tailName,
+    setFolder, startScan, cancelScan, openNode, setViewMode,
   } = useStore();
 
   const scanning = phase === "scanning";
@@ -59,7 +60,25 @@ export default function App() {
             <span className="crumb current">{tailName ?? "root"}</span>
           </nav>
           <Legend />
-          <OrbitView />
+          <div className="view-switch" role="tablist" aria-label="Visual model">
+            <button
+              role="tab"
+              aria-selected={viewMode === "orbit"}
+              className={viewMode === "orbit" ? "view-tab active" : "view-tab"}
+              onClick={() => setViewMode("orbit")}
+            >
+              Orbit
+            </button>
+            <button
+              role="tab"
+              aria-selected={viewMode === "strata"}
+              className={viewMode === "strata" ? "view-tab active" : "view-tab"}
+              onClick={() => setViewMode("strata")}
+            >
+              Strata
+            </button>
+          </div>
+          {viewMode === "orbit" ? <OrbitView /> : <StrataView />}
           <div className="stats-line">
             {view.totalChildren.toLocaleString()} items in this folder
             {rootId === null ? " (no scan yet)" : ""}

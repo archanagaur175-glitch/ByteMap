@@ -73,7 +73,7 @@ Brief (lines 13-16): Tier A = direct NTFS MFT read, local NTFS only, needs eleva
 
 ## Phase 7 — Strata and visual polish (detail pending approval)
 - [ ] P7.T1 treemap view | [x] P7.T1a Rust Strata layout (squarified, nested depth 3, normalized 10000-unit canvas, 4000-tile budget, MAX_CHILDREN 32/parent, packed LE v1) + node_strata command + 7 unit tests | crates/bytemap-core/src/{strata.rs,lib.rs}, src-tauri/src/{view.rs,commands.rs,lib.rs} | cargo test -p bytemap-core (29 passed)
-- [ ] P7.T1b Strata frontend (parser + Canvas2D renderer + StrataView + Orbit/Strata switch + vitest) | src/{strata.ts,strata.test.ts,renderer.ts,StrataView.tsx,store.ts,App.tsx,styles.css} | npm run build && npx vitest run
+- [x] P7.T1b Strata frontend (parser + hit-test + Canvas2D renderer + StrataView + Orbit/Strata switch + vitest 8 tests; visual check still needs an owner `npm run tauri dev` run) | src/{strata.ts,strata.test.ts,renderer.ts,StrataView.tsx,Inspector.tsx,store.ts,App.tsx,styles.css} | npm run build + npx vitest run (18 passed); scripts/check.ps1 GATE_EXIT=0 (2026-11-18)
 - [ ] P7.T2 optional Nebula (bubble map of top 200 items; owner decides build or skip) | TBD | TBD
 - [ ] P7.T3 Mica/acrylic + glass 24px + 180ms motion + dark/light themes (window-vibrancy, the approved Phase 7-only dep) | TBD | TBD
 - [ ] P7.T4 token match + reduced-motion gate | TBD | TBD

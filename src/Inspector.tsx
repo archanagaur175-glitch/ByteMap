@@ -1,8 +1,7 @@
-// Inspector: details of the hovered (or last clicked) orbit arc.
+// Inspector: details of the hovered (or last clicked) arc or tile.
 // Safety tiers/categories arrive in Phase 4; flags are shown as text
 // badges, never color-only (PROJECT_BRIEF accessibility rule).
 
-import type { OrbitArc } from "./orbit";
 import {
   formatBytes,
   FLAG_DIR,
@@ -10,14 +9,26 @@ import {
   FLAG_PLACEHOLDER,
   FLAG_DUPLICATE_HARDLINK,
 } from "./parseView";
-import { CATEGORY_NAMES, TIER_NAMES, TIER_COLORS } from "./colors";
+import { CATEGORY_NAMES, TIER_COLORS, TIER_NAMES } from "./colors";
 
-export function Inspector(props: { arc: OrbitArc | null }) {
+/** What the inspector needs; both OrbitArc and StrataRect satisfy it. */
+export interface Inspectable {
+  name: string;
+  logical: number;
+  onDisk: number;
+  flags: number;
+  cat: number;
+  tier: number;
+  /** Ring (orbit) or layer (strata). */
+  depth: number;
+}
+
+export function Inspector(props: { arc: Inspectable | null }) {
   const arc = props.arc;
   return (
     <aside className="inspector">
       {arc === null ? (
-        <div className="inspector-hint">Hover an arc for details</div>
+        <div className="inspector-hint">Hover an arc or tile for details</div>
       ) : (
         <>
           <div className="inspector-name" title={arc.name}>

@@ -61,11 +61,16 @@ no huge tree built). T4a/T4b/T4c committed (96857b0, 6a805a8, d7ef858; memory 38
 PHASE 6 CLOSED 2026-11-18 (owner-approved Phase 7 in the same turn). T4 speed number DEFERRED, not
 passed: it is OPEN QUESTION Q4 (docs/agent/OPEN_QUESTIONS.md) with the exact elevated command; parity
 passed exactly. Never claim the MFT speed gate as met until Q4 is answered.
-PHASE 7 IN PROGRESS (approved 2026-11-18): T1 Strata treemap (Rust squarified nested layout + packed
-LE command + Canvas2D view + Orbit/Strata switcher), T2 Nebula (owner choice: build or skip),
-T3 Mica/acrylic + glass 24px + 180ms motion + dark/light themes (window-vibrancy is the approved
-Phase 7-only dep - verify version), T4 token match + reduced-motion gate. Tokens are fixed by
-PROJECT_BRIEF.md line 28.
+PHASE 7 IN PROGRESS (approved 2026-11-18): T1 DONE end to end - T1a Rust (bytemap-core::strata
+squarified treemap, normalized 10000-unit canvas so resizes never re-layout, nesting depth clamp
+1..=4 default 3, shared 4000-tile budget, MAX_CHILDREN 32/parent, packed LE v1, node_strata command)
+and T1b frontend (src/strata.ts decoder + deepest-tile hit-test, Canvas2DStrataRenderer, StrataView
+with ResizeObserver + 320ms cross-fade honoring prefers-reduced-motion, Inspector generalized to a
+structural Inspectable interface, store {strata, viewMode, setViewMode} with openNode fetching
+view+orbit+strata in ONE Promise.all, Orbit/Strata tablist in App.tsx). Visual proof still needs an
+owner `npm run tauri dev` run. Remaining: T2 Nebula (owner choice: build or skip), T3 Mica/acrylic +
+glass 24px + 180ms motion + dark/light themes (window-vibrancy is the approved Phase 7-only dep -
+verify version), T4 token match + reduced-motion gate. Tokens are fixed by PROJECT_BRIEF.md line 28.
 
 Environment facts: rustc/cargo 1.97.1 pinned via rust-toolchain.toml (clippy + rustfmt components);
 node 22.22.3 / npm 10.9.8; Tauri CLI comes from npm @tauri-apps/cli (no global install);
@@ -97,5 +102,5 @@ Non-negotiables:
   @types/react, @types/react-dom, @tauri-apps/api, @tauri-apps/cli (dev), vitest (dev);
   Rust: tauri, tauri-build, serde, serde_json (src-tauri only). zustand approved + installed in Phase 2.
 - Check: scripts/check.ps1 (fmt, check, clippy -D warnings, test, npm build, vitest).
-- Open item: P6.T4 whole-volume speed gate (owner elevated run) + P6.GATE. P6.T0 signing decision CLOSED (deferred to P9.T3).
+- Open item: Q4 = P6.T4 whole-volume speed gate (owner elevated run) — still unmeasured, see OPEN_QUESTIONS.md. P6.T0 signing decision CLOSED (deferred to P9.T3).
 - Windows 11 is the target; Win10 = best-effort flat fallback, untested.

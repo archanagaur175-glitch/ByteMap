@@ -5,10 +5,15 @@ import { create } from "zustand";
 import { invoke, Channel } from "@tauri-apps/api/core";
 import { parseView } from "./parseView";
 import { parseOrbit } from "./orbit";
+import { parseStrata } from "./strata";
 import type { View, ViewItem } from "./parseView";
 import type { Orbit } from "./orbit";
+import type { Strata } from "./strata";
 
 export type Phase = "idle" | "scanning" | "done" | "error";
+
+/** Visual models the main pane can show (Phase 7). */
+export type ViewMode = "orbit" | "strata";
 
 /** One staged cleanup candidate (mirrors basket_list JSON). */
 export interface BasketEntry {
@@ -70,6 +75,10 @@ interface ByteMapState {
   view: View | null;
   /** Sunburst layout for the same node as `view` (null = not loaded). */
   orbit: Orbit | null;
+  /** Strata (layered treemap) layout for the same node (null = not loaded). */
+  strata: Strata | null;
+  /** Which visual model the main pane shows. */
+  viewMode: ViewMode;
   selectedId: number | null;
   /** Name of the currently open node (for the breadcrumb's last crumb). */
   tailName: string | null;
@@ -93,6 +102,7 @@ interface ByteMapState {
   cancelScan: () => Promise<void>;
   openNode: (nodeId: number) => Promise<void>;
   select: (id: number) => void;
+  setViewMode: (mode: ViewMode) => void;
   toggleCat: (cat: number) => void;
   toggleTier: (tier: number) => void;
   refreshBasket: () => Promise<void>;
@@ -112,6 +122,8 @@ export const useStore = create<ByteMapState>((set, get) => ({
   rootId: null,
   view: null,
   orbit: null,
+  strata: null,
+  viewMode: "orbit",
   selectedId: null,
   tailName: null,
   hiddenCats: [],
@@ -132,7 +144,7 @@ export const useStore = create<ByteMapState>((set, get) => ({
     }
     set({
       phase: "scanning", progress: null, error: null, rootId: null, view: null, orbit: null,
-      tailName: null,
+      strata: null, tailName: null,
       // New scan invalidates node ids: Rust empties the basket; mirror here.
       basket: [], basketNotice: null, dryRun: null, lastReport: null, lastUndo: null,
     });
@@ -193,18 +205,29 @@ export const useStore = create<ByteMapState>((set, get) => ({
       const item = cur?.items.find((it) => it.id === nodeId && !it.isFolded);
       const anc = cur?.ancestors.find((a) => a.id === nodeId);
       const tailName = item?.name ?? anc?.name ?? get().tailName ?? null;
-      // Responses with Raw bodies arrive as ArrayBuffer.
-      const [buf, obuf] = (await Promise.all([
+      // Responses with Raw bodies arrive as ArrayBuffer. All three layouts
+      // share the same tree read, so one round trip per model is fine and
+      // switching views never needs another invoke.
+      const [buf, obuf, sbuf] = (await Promise.all([
         invoke("node_view", { nodeId, limit: 200 }),
         invoke("node_orbit", { nodeId, rings: 4, maxArcs: 4000 }),
-      ])) as [ArrayBuffer, ArrayBuffer];
-      set({ view: parseView(buf), orbit: parseOrbit(obuf), selectedId: nodeId, tailName });
+        invoke("node_strata", { nodeId, depth: 3, maxRects: 4000 }),
+      ])) as [ArrayBuffer, ArrayBuffer, ArrayBuffer];
+      set({
+        view: parseView(buf),
+        orbit: parseOrbit(obuf),
+        strata: parseStrata(sbuf),
+        selectedId: nodeId,
+        tailName,
+      });
     } catch (e) {
       set({ error: String(e) });
     }
   },
 
   select: (id) => set({ selectedId: id }),
+
+  setViewMode: (mode) => set({ viewMode: mode }),
 
   toggleCat: (cat) =>
     set((s) => ({
