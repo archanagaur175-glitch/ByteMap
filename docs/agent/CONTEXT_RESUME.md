@@ -48,8 +48,9 @@ src-tauri: start_scan(root, useMft) -> run_scan_job(use_mft) -> mft_scan (MftCli
 RecordStream iterator w/ cancel + progress -> build_tree_from_records) with AUTOMATIC walker
 fallback; complete event carries "tier": "walker"/"mft" + "fallbackReason". P1.T7 spike
 (owner, elevated, real C:): 527,391 entries/s = 1.58x the 333k entries/s T4 gate target.
-Next: P6.T4 parity+bench on %TEMP%\bytemap-bench-100k (OWNER runs the elevated helper),
-then P6.GATE.
+Next: P6.T4 parity+bench on %TEMP%\bytemap-bench-100k — prep DONE (T4a helper parent-watch lifetime,
+T4b ensure_helper runas-spawn + tauri command, T4c bench-mft bin), gate numbers pending the OWNER's
+elevated run (cargo run --release -p bytemap-scan --bin bench-mft), then P6.GATE.
 
 Environment facts: rustc/cargo 1.97.1 pinned via rust-toolchain.toml (clippy + rustfmt components);
 node 22.22.3 / npm 10.9.8; Tauri CLI comes from npm @tauri-apps/cli (no global install);
