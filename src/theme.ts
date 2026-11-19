@@ -11,6 +11,25 @@ export const DEFAULT_THEME: Theme = "dark";
 /** localStorage key. Local-only: nothing is ever sent off the machine. */
 export const THEME_STORAGE_KEY = "bytemap.theme";
 
+/** Standard UI motion in ms (brief line 28); CSS --motion must match. */
+export const STANDARD_MS = 180;
+
+/** Drill-in motion in ms (brief line 28), used by Orbit and Strata. */
+export const DRILL_MS = 320;
+
+/**
+ * True when the user asked the OS to reduce motion. Every animation must
+ * honour this: CSS transitions are zeroed by the media block in styles.css,
+ * and the canvas drill animations ask this before starting.
+ */
+export function reducedMotion(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  );
+}
+
 export function isTheme(value: unknown): value is Theme {
   return value === "dark" || value === "light";
 }

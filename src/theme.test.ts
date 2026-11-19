@@ -3,10 +3,13 @@ import { describe, expect, it } from "vitest";
 import { CATEGORY_COLORS, TIER_COLORS, canvasColors, labelInk, refreshColors } from "./colors";
 import {
   DEFAULT_THEME,
+  DRILL_MS,
+  STANDARD_MS,
   THEME_STORAGE_KEY,
   currentTheme,
   isTheme,
   loadTheme,
+  reducedMotion,
   saveTheme,
   token,
 } from "./theme";
@@ -85,11 +88,14 @@ describe("theme tokens", () => {
   });
 
   it("uses the brief's geometry and motion scale", () => {
-    expect(valueOf(css.slice(0, lightAt === -1 ? css.length : lightAt), "--radius")).toBe("12px");
-    expect(valueOf(css.slice(0, lightAt === -1 ? css.length : lightAt), "--glass-blur")).toBe("24px");
-    expect(valueOf(css.slice(0, lightAt === -1 ? css.length : lightAt), "--motion")).toBe("180ms");
-    // Drill motion stays 320ms in JS; the standard motion is 180ms.
-    expect(css).toContain("prefers-reduced-motion: reduce");
+    const head = css.slice(0, lightAt === -1 ? css.length : lightAt);
+    expect(valueOf(head, "--radius")).toBe("12px");
+    expect(valueOf(head, "--glass-blur")).toBe("24px");
+    expect(valueOf(head, "--motion")).toBe("180ms");
+    // The JS constants must agree with the brief and with --motion.
+    expect(STANDARD_MS).toBe(180);
+    expect(DRILL_MS).toBe(320);
+    expect(valueOf(head, "--motion")).toBe(`${STANDARD_MS}ms`);
   });
 
   it("gives every category and tier a token in both themes", () => {
@@ -147,6 +153,40 @@ describe("theme selection", () => {
     // No document in the node test environment.
     expect(currentTheme()).toBe("dark");
     expect(token("--bg")).toBe("");
+  });
+});
+
+describe("reduced motion gate", () => {
+  it("reports no reduced-motion preference outside a browser", () => {
+    expect(reducedMotion()).toBe(false);
+  });
+
+  it("zeroes CSS transitions and animations when motion is reduced", () => {
+    expect(css).toContain("@media (prefers-reduced-motion: reduce)");
+    const block = css.slice(css.indexOf("@media (prefers-reduced-motion: reduce)"));
+    expect(block).toContain("transition-duration: 0.01ms !important");
+    expect(block).toContain("animation-duration: 0.01ms !important");
+    expect(block).toContain("animation-iteration-count: 1 !important");
+  });
+
+  it("has no hardcoded transition durations (all use the motion token)", () => {
+    const declarations = [...css.matchAll(/transition:([\s\S]*?);/g)].map((m) => m[1]);
+    expect(declarations.length).toBeGreaterThan(0);
+    for (const value of declarations) {
+      expect(value).toContain("var(--motion)");
+    }
+    // No keyframe animations exist yet; if one is added it must be gated too.
+    expect(css).not.toMatch(/@keyframes/);
+  });
+
+  it("keeps both canvas views on the shared motion gate", () => {
+    // A refactor that drops the check must fail this test, not ship silently.
+    for (const view of ["./OrbitView.tsx", "./StrataView.tsx"]) {
+      const source = readFileSync(new URL(view, import.meta.url), "utf8");
+      expect(source, view).toContain("reducedMotion()");
+      expect(source, view).toContain("DRILL_MS");
+      expect(source, view).not.toContain("matchMedia");
+    }
   });
 });
 

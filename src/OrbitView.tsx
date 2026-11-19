@@ -7,6 +7,7 @@ import { hitTest } from "./orbit";
 import type { OrbitGeometry, OrbitArc } from "./orbit";
 import { useStore } from "./store";
 import { FLAG_DIR } from "./orbit";
+import { DRILL_MS, reducedMotion } from "./theme";
 import { Inspector } from "./Inspector";
 
 export function OrbitView() {
@@ -63,21 +64,18 @@ export function OrbitView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hoveredId, selectedId, theme]);
 
-  // Drill motion: 320ms zoom-in whenever the orbit is re-centered
+  // Drill motion: DRILL_MS zoom-in whenever the orbit is re-centered
   // (PROJECT_BRIEF), skipped entirely under prefers-reduced-motion.
   useEffect(() => {
     if (!orbit) return;
-    const reduce =
-      typeof window.matchMedia === "function" &&
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (reduce) {
+    if (reducedMotion()) {
       draw();
       return;
     }
     const renderer = rendererRef.current;
     if (!renderer) return;
     const start = performance.now();
-    const dur = 320;
+    const dur = DRILL_MS;
     const tick = (now: number) => {
       const t = Math.min(1, (now - start) / dur);
       const e = 1 - Math.pow(1 - t, 3); // ease-out cubic

@@ -8,6 +8,7 @@ import { hitTestStrata } from "./strata";
 import type { StrataRect } from "./strata";
 import { useStore } from "./store";
 import { FLAG_DIR } from "./orbit";
+import { DRILL_MS, reducedMotion } from "./theme";
 import { Inspector } from "./Inspector";
 
 export function StrataView() {
@@ -62,20 +63,17 @@ export function StrataView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hoveredId, selectedId, theme]);
 
-  // Drill motion: the same 320ms standard the Orbit view uses, here as a
+  // Drill motion: the same DRILL_MS standard the Orbit view uses, here as a
   // cross-fade (a treemap zoom would slide every tile at once). Skipped
   // entirely under prefers-reduced-motion.
   useEffect(() => {
     if (!strata) return;
-    const reduce =
-      typeof window.matchMedia === "function" &&
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (reduce) {
+    if (reducedMotion()) {
       draw();
       return;
     }
     const start = performance.now();
-    const dur = 320;
+    const dur = DRILL_MS;
     const tick = (now: number) => {
       const t = Math.min(1, (now - start) / dur);
       draw(1 - Math.pow(1 - t, 3)); // ease-out cubic fade-in
