@@ -73,11 +73,14 @@ for DOM and canvas, renderers re-read them each frame; strata label ink follows 
 T4 gate: theme.test.ts proves both token sets, the motion scale and the reduced-motion contract
 (CSS media block + shared theme.ts::reducedMotion()/DRILL_MS used by both views, no hardcoded
 transition durations, no ungated keyframes); docs/agent/TOKENS.md is the audit table.
-NEXT: Phase 8 (snapshots + change tracking) plan needs four owner answers before any code:
-(a) P8.T3 USN refresh needs usn-journal-rs, which the brief marks "Phase 6 only" - re-approve or
-skip; (b) snapshot location/UI (typed path vs the Tauri dialog plugin = a new dep vs a fixed
-app-data folder); (c) 1M reopen fixture (synthetic 1M-node tree vs 1M real files); (d) snapshot code
-lives in bytemap-core as a module, not a new crate. No Phase 8 code without "APPROVED: Phase 8".
+NEXT: Phase 8 (snapshots + change tracking) - all four plan questions are answered and Q5 is closed:
+(a) usn-journal-rs 0.5.0 re-approved for this phase but confined to the ELEVATED helper (it requires
+Administrator); (b) snapshots live in %LOCALAPPDATA%\ByteMap\snapshots, no dialog plugin; (c) the <1 s
+reopen gate uses a synthetic 1M-node tree; (d) snapshot code is a bytemap-core module. Q5: the codec is a
+HAND-ROLLED versioned packed LE structure (u16 version header, string arena, node arena, category map,
+scan metadata) compressed with zstd 0.14.4 - bincode is rejected (3.0.0 is a tombstone, 2.0.1 abandoned).
+Task order: T1 format -> T1b store/commands/UI -> T2 diff by path -> T3 USN refresh -> T4 CSV -> T5 1M
+reopen gate -> P8.GATE. No Phase 8 code without "APPROVED: Phase 8".
 
 Environment facts: rustc/cargo 1.97.1 pinned via rust-toolchain.toml (clippy + rustfmt components);
 node 22.22.3 / npm 10.9.8; Tauri CLI comes from npm @tauri-apps/cli (no global install);
