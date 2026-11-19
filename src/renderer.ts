@@ -4,7 +4,7 @@
 // component can hit-test clicks with the same numbers.
 
 import { formatBytes } from "./parseView";
-import { CATEGORY_COLORS } from "./colors";
+import { CATEGORY_COLORS, canvasColors, labelInk, refreshColors } from "./colors";
 import type { Orbit } from "./orbit";
 import { CANVAS } from "./strata";
 import type { Strata } from "./strata";
@@ -30,14 +30,13 @@ export interface OrbitRenderer {
   geometry(): { cx: number; cy: number; innerR: number; ringWidth: number };
 }
 
-const BG = "#0b0f1a";
-const TEXT = "#e8ecf6";
-
 export class Canvas2DRenderer implements OrbitRenderer {
   private ctx: CanvasRenderingContext2D;
   private w = 0;
   private h = 0;
   private geo = { cx: 0, cy: 0, innerR: 0, ringWidth: 0 };
+  /** Theme tokens for the frame being painted (read once per render). */
+  private ink = canvasColors();
 
   constructor(canvas: HTMLCanvasElement) {
     const ctx = canvas.getContext("2d");
@@ -60,7 +59,11 @@ export class Canvas2DRenderer implements OrbitRenderer {
 
   render(scene: OrbitScene): void {
     const { ctx, w, h } = this;
-    ctx.fillStyle = BG;
+    // Follow the active theme (dark/light) without restarting the renderer.
+    refreshColors();
+    this.ink = canvasColors();
+    const { bg, text, panel, muted, border } = this.ink;
+    ctx.fillStyle = bg;
     ctx.fillRect(0, 0, w, h);
 
     const orbit = scene.orbit;
@@ -92,17 +95,17 @@ export class Canvas2DRenderer implements OrbitRenderer {
     // Center disc: the current folder.
     ctx.beginPath();
     ctx.arc(cx, cy, innerR - 2, 0, Math.PI * 2);
-    ctx.fillStyle = "#131a2b";
+    ctx.fillStyle = panel;
     ctx.fill();
-    ctx.strokeStyle = "#2a3350";
+    ctx.strokeStyle = border;
     ctx.lineWidth = 1;
     ctx.stroke();
-    ctx.fillStyle = TEXT;
+    ctx.fillStyle = text;
     ctx.font = '600 13px "Segoe UI Variable Text", "Segoe UI", sans-serif';
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText(formatBytes(orbit.centerLogical), cx, cy - 7);
-    ctx.fillStyle = "#8892a6";
+    ctx.fillStyle = muted;
     ctx.font = '11px "Segoe UI Variable Text", "Segoe UI", sans-serif';
     ctx.fillText("on disk " + formatBytes(orbit.centerOnDisk), cx, cy + 9);
     ctx.restore();
@@ -117,6 +120,7 @@ export class Canvas2DRenderer implements OrbitRenderer {
     ringWidth: number,
   ): void {
     const { ctx } = this;
+    const { bg, text } = this.ink;
     const a0 = arc.start * Math.PI * 2;
     const a1 = (arc.start + arc.sweep) * Math.PI * 2;
     const rOut = innerR + arc.depth * ringWidth;
@@ -133,17 +137,17 @@ export class Canvas2DRenderer implements OrbitRenderer {
       (scene.hiddenCats?.includes(arc.cat) ?? false) ||
       (scene.hiddenTiers?.includes(arc.tier) ?? false);
     // Arc fill = category color (ring depth no longer carries color).
-    let fill = CATEGORY_COLORS[arc.cat] ?? "#8892A6";
-    if (filtered) fill = mix(fill, BG, 0.75);
+    let fill = CATEGORY_COLORS[arc.cat] ?? "#8892a6";
+    if (filtered) fill = mix(fill, bg, 0.75);
     if (hovered && !filtered) fill = mix(fill, "#ffffff", 0.35);
     ctx.fillStyle = fill;
     ctx.fill();
     // 1px separation between wedges.
-    ctx.strokeStyle = BG;
+    ctx.strokeStyle = bg;
     ctx.lineWidth = 1;
     ctx.stroke();
     if (selected) {
-      ctx.strokeStyle = TEXT;
+      ctx.strokeStyle = text;
       ctx.lineWidth = 2;
       ctx.stroke();
     }
@@ -201,7 +205,10 @@ export class Canvas2DStrataRenderer {
 
   render(scene: StrataScene): void {
     const { ctx, w, h } = this;
-    ctx.fillStyle = BG;
+    // Follow the active theme (dark/light) without restarting the renderer.
+    refreshColors();
+    const { bg, text } = canvasColors();
+    ctx.fillStyle = bg;
     ctx.fillRect(0, 0, w, h);
     if (w <= 0 || h <= 0) return;
 
@@ -223,10 +230,10 @@ export class Canvas2DStrataRenderer {
         const filtered =
           (scene.hiddenCats?.includes(rect.cat) ?? false) ||
           (scene.hiddenTiers?.includes(rect.tier) ?? false);
-        let fill = CATEGORY_COLORS[rect.cat] ?? "#8892A6";
+        let fill = CATEGORY_COLORS[rect.cat] ?? "#8892a6";
         // Each nested layer sits a little darker: the strata read as depth.
-        if (depth > 1) fill = mix(fill, BG, 0.12 * (depth - 1));
-        if (filtered) fill = mix(fill, BG, 0.75);
+        if (depth > 1) fill = mix(fill, bg, 0.12 * (depth - 1));
+        if (filtered) fill = mix(fill, bg, 0.75);
         const hovered = scene.hoveredId === rect.id;
         if (hovered && !filtered) fill = mix(fill, "#ffffff", 0.32);
 
@@ -235,12 +242,12 @@ export class Canvas2DStrataRenderer {
 
         // 1px separation from the neighbour (depth 1 keeps the outer edge).
         if (depth > 1) {
-          ctx.strokeStyle = mix(BG, "#ffffff", 0.06);
+          ctx.strokeStyle = mix(bg, "#ffffff", 0.06);
           ctx.lineWidth = 1;
           ctx.strokeRect(x + 0.5, y + 0.5, Math.max(0, tw - 1), Math.max(0, th - 1));
         }
         if (scene.selectedId === rect.id) {
-          ctx.strokeStyle = TEXT;
+          ctx.strokeStyle = text;
           ctx.lineWidth = 2;
           ctx.strokeRect(x + 1, y + 1, Math.max(0, tw - 2), Math.max(0, th - 2));
         }
@@ -251,13 +258,14 @@ export class Canvas2DStrataRenderer {
           ctx.beginPath();
           ctx.rect(x, y, tw, th);
           ctx.clip();
-          ctx.fillStyle = "rgba(11, 15, 26, 0.78)";
+          // Ink follows the tile's lightness, so it stays readable in both themes.
+          ctx.fillStyle = labelInk(fill, 0.86);
           ctx.font = '600 12px "Segoe UI Variable Text", "Segoe UI", sans-serif';
           ctx.textAlign = "left";
           ctx.textBaseline = "top";
           ctx.fillText(truncate(ctx, rect.name, tw - 10), x + 5, y + 4);
           if (th >= 38) {
-            ctx.fillStyle = "rgba(11, 15, 26, 0.62)";
+            ctx.fillStyle = labelInk(fill, 0.6);
             ctx.font = '11px "Cascadia Mono", Consolas, monospace';
             ctx.fillText(formatBytes(rect.logical), x + 5, y + 20);
           }

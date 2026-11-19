@@ -6,14 +6,37 @@ import { invoke, Channel } from "@tauri-apps/api/core";
 import { parseView } from "./parseView";
 import { parseOrbit } from "./orbit";
 import { parseStrata } from "./strata";
+import { refreshColors } from "./colors";
+import { applyTheme, loadTheme, saveTheme } from "./theme";
 import type { View, ViewItem } from "./parseView";
 import type { Orbit } from "./orbit";
 import type { Strata } from "./strata";
+import type { Theme } from "./theme";
 
 export type Phase = "idle" | "scanning" | "done" | "error";
 
 /** Visual models the main pane can show (Phase 7). */
 export type ViewMode = "orbit" | "strata";
+
+// Bootstrap (Phase 7): apply the stored theme before the first paint, make
+// the color cache match it, then ask Rust which window backdrop the OS
+// accepted. The UI only lets the window be transparent when a real material
+// is active.
+applyTheme(loadTheme());
+refreshColors();
+try {
+  void invoke<string>("backdrop_state")
+    .then((material) => {
+      if (typeof document !== "undefined") {
+        document.documentElement.dataset.backdrop = material;
+      }
+    })
+    .catch(() => {
+      // No backdrop information: styles.css keeps the opaque background.
+    });
+} catch {
+  // Not inside the Tauri webview (tests, plain browser): nothing to ask.
+}
 
 /** One staged cleanup candidate (mirrors basket_list JSON). */
 export interface BasketEntry {
@@ -79,6 +102,8 @@ interface ByteMapState {
   strata: Strata | null;
   /** Which visual model the main pane shows. */
   viewMode: ViewMode;
+  /** Active color theme; dark is the default and the choice persists locally. */
+  theme: Theme;
   selectedId: number | null;
   /** Name of the currently open node (for the breadcrumb's last crumb). */
   tailName: string | null;
@@ -103,6 +128,7 @@ interface ByteMapState {
   openNode: (nodeId: number) => Promise<void>;
   select: (id: number) => void;
   setViewMode: (mode: ViewMode) => void;
+  setTheme: (theme: Theme) => void;
   toggleCat: (cat: number) => void;
   toggleTier: (tier: number) => void;
   refreshBasket: () => Promise<void>;
@@ -124,6 +150,7 @@ export const useStore = create<ByteMapState>((set, get) => ({
   orbit: null,
   strata: null,
   viewMode: "orbit",
+  theme: loadTheme(),
   selectedId: null,
   tailName: null,
   hiddenCats: [],
@@ -228,6 +255,27 @@ export const useStore = create<ByteMapState>((set, get) => ({
   select: (id) => set({ selectedId: id }),
 
   setViewMode: (mode) => set({ viewMode: mode }),
+
+  setTheme: (theme) => {
+    applyTheme(theme);
+    // CSS tokens are live now; refresh the cached copies the views read
+    // (getComputedStyle forces the recalc, so the new values are available).
+    refreshColors();
+    saveTheme(theme);
+    set({ theme });
+    // Keep the OS backdrop in step: Mica is dark or light, never both.
+    try {
+      void invoke<string>("set_backdrop_theme", { dark: theme === "dark" })
+        .then((material) => {
+          if (typeof document !== "undefined") {
+            document.documentElement.dataset.backdrop = material;
+          }
+        })
+        .catch(() => {});
+    } catch {
+      // Not inside the Tauri webview: the CSS theme alone is enough.
+    }
+  },
 
   toggleCat: (cat) =>
     set((s) => ({

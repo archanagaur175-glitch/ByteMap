@@ -22,6 +22,10 @@ bytemap-core = { path = "../crates/bytemap-core" }
 bytemap-scan = { path = "../crates/bytemap-scan" }
 bytemap-actions = { path = "../crates/bytemap-actions" }
 
+# Phase 7 only: Windows 11 Mica / acrylic window backdrop.
+[target.'cfg(windows)'.dependencies]
+window-vibrancy = "0.8.1"
+
 [features]
 # This feature is used by tauri's build for the custom-protocol production path.
 custom-protocol = ["tauri/custom-protocol"]

@@ -61,16 +61,22 @@ no huge tree built). T4a/T4b/T4c committed (96857b0, 6a805a8, d7ef858; memory 38
 PHASE 6 CLOSED 2026-11-18 (owner-approved Phase 7 in the same turn). T4 speed number DEFERRED, not
 passed: it is OPEN QUESTION Q4 (docs/agent/OPEN_QUESTIONS.md) with the exact elevated command; parity
 passed exactly. Never claim the MFT speed gate as met until Q4 is answered.
-PHASE 7 IN PROGRESS (approved 2026-11-18): T1 DONE end to end - T1a Rust (bytemap-core::strata
-squarified treemap, normalized 10000-unit canvas so resizes never re-layout, nesting depth clamp
-1..=4 default 3, shared 4000-tile budget, MAX_CHILDREN 32/parent, packed LE v1, node_strata command)
-and T1b frontend (src/strata.ts decoder + deepest-tile hit-test, Canvas2DStrataRenderer, StrataView
-with ResizeObserver + 320ms cross-fade honoring prefers-reduced-motion, Inspector generalized to a
-structural Inspectable interface, store {strata, viewMode, setViewMode} with openNode fetching
-view+orbit+strata in ONE Promise.all, Orbit/Strata tablist in App.tsx). Visual proof still needs an
-owner `npm run tauri dev` run. Remaining: T2 Nebula (owner choice: build or skip), T3 Mica/acrylic +
-glass 24px + 180ms motion + dark/light themes (window-vibrancy is the approved Phase 7-only dep -
-verify version), T4 token match + reduced-motion gate. Tokens are fixed by PROJECT_BRIEF.md line 28.
+PHASE 7 IN PROGRESS (approved 2026-11-18). T1 DONE end to end:
+T1a Rust (bytemap-core::strata squarified treemap, normalized 10000-unit canvas so resizes never
+re-layout, nesting depth clamp 1..=4 default 3, shared 4000-tile budget, MAX_CHILDREN 32/parent,
+packed LE v1, node_strata command); T1b frontend (src/strata.ts decoder + deepest-tile hit-test,
+Canvas2DStrataRenderer, StrataView with ResizeObserver + 320ms cross-fade honoring
+prefers-reduced-motion, Inspector generalized to a structural Inspectable interface, store
+{strata, viewMode, setViewMode} with openNode fetching view+orbit+strata in ONE Promise.all,
+Orbit/Strata tablist in App.tsx). T2 Nebula SKIPPED by owner. T3 DONE: window-vibrancy 0.8.1
+(Phase 7-only dep) applies Mica -> acrylic -> none and reports the material to the UI
+(data-backdrop); styles.css holds EVERY color as a CSS custom property (dark default + light per
+brief line 28), 12px radius, 24px glass blur, 180ms motion; theme.ts persists the choice in
+localStorage; colors.ts caches the tokens for the DOM and the canvases, renderers re-read them each
+frame, views repaint on switch, strata label ink follows tile lightness. RUNTIME PROVEN:
+`npx tauri dev` printed `[backdrop] mica` on this machine. REMAINING: T4 token match (largely
+covered by theme.test.ts) + reduced-motion audit + owner visual pass. Nothing has been eyeballed
+yet - the look of both themes and the Orbit/Strata switch need one owner `npx tauri dev` run.
 
 Environment facts: rustc/cargo 1.97.1 pinned via rust-toolchain.toml (clippy + rustfmt components);
 node 22.22.3 / npm 10.9.8; Tauri CLI comes from npm @tauri-apps/cli (no global install);

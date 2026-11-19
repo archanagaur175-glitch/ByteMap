@@ -12,6 +12,7 @@ import { Inspector } from "./Inspector";
 export function OrbitView() {
   const orbit = useStore((s) => s.orbit);
   const selectedId = useStore((s) => s.selectedId);
+  const theme = useStore((s) => s.theme);
   const openNode = useStore((s) => s.openNode);
   const select = useStore((s) => s.select);
 
@@ -54,13 +55,13 @@ export function OrbitView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Plain redraw on hover/selection changes (declared before the drill
+  // Plain redraw on hover/selection/theme changes (declared before the drill
   // effect so a same-commit orbit change ends up rendered by the drill's
   // synchronous first frame, not by this one).
   useEffect(() => {
     draw();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hoveredId, selectedId]);
+  }, [hoveredId, selectedId, theme]);
 
   // Drill motion: 320ms zoom-in whenever the orbit is re-centered
   // (PROJECT_BRIEF), skipped entirely under prefers-reduced-motion.

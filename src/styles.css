@@ -1,24 +1,115 @@
-/* Phase 2 minimal UI — dark tokens from PROJECT_BRIEF.
-   Full Windows 11 polish (Mica, motion, themes) lands in Phase 7. */
+/* ByteMap UI.
+   Phase 7 Windows 11 look: Mica backdrop (applied in Rust with
+   window-vibrancy), glass panels with a 24px blur, 12px radius, 180ms
+   standard / 320ms drill motion, dark and light themes.
+
+   ALL colors are tokens here (PROJECT_BRIEF.md line 28). The canvas
+   renderers read the same values back with theme.ts::token(), so a color is
+   changed in exactly one place. The dark block comes FIRST on purpose:
+   theme.test.ts slices the file at the `[data-theme="light"]` selector to
+   check the brief's exact values in both themes. */
 
 :root {
+  --radius: 12px;
+  --glass-blur: 24px;
+  --motion: 180ms;
+  --motion-ease: cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* ---- Dark theme (default) — brief dark tokens ---- */
+:root,
+:root[data-theme="dark"] {
   --bg: #0b0f1a;
   --text: #e8ecf6;
   --accent: #6ea8ff;
+  --on-accent: #0b0f1a;
   --panel: #131a2b;
+  --glass: rgba(19, 26, 43, 0.72);
   --muted: #8892a6;
+  --border: #2a3350;
+  --line: #222b45;
+  --hover: #1a2338;
+  --selected: #24304d;
+  --ok: #7ee2a8;
+  --ok-border: #2f5c44;
+  --warn: #ffcc66;
+  --warn-border: #6b5a22;
+  --danger: #ff8fa0;
+  --danger-strong: #ff5d5d;
+  --danger-border: #7a2c3a;
+  --danger-soft: #3a2431;
+  --scrim: rgba(5, 8, 15, 0.7);
+  /* categories, keyed by wire id: 0 Code, 1 System, 2 Archives, 3 Media,
+     4 Documents, 5 Apps, 6 Other */
+  --cat-0: #4fd1c5;
+  --cat-1: #a78bfa;
+  --cat-2: #ffb347;
+  --cat-3: #ff5c8a;
+  --cat-4: #5b9dff;
+  --cat-5: #8bdd6b;
+  --cat-6: #8892a6;
+  /* safety tiers: 0 Safe, 1 Review, 2 Protected */
+  --tier-0: #3ddc97;
+  --tier-1: #ffc857;
+  --tier-2: #ff5d5d;
+}
+
+/* ---- Light theme — brief light tokens ---- */
+:root[data-theme="light"] {
+  --bg: #f3f5fa;
+  --text: #121826;
+  --accent: #2f6fe0;
+  --on-accent: #ffffff;
+  --panel: #ffffff;
+  --glass: rgba(255, 255, 255, 0.72);
+  --muted: #6b7488;
+  --border: #d5dbe8;
+  --line: #e4e9f2;
+  --hover: #e8eefa;
+  --selected: #d9e4f8;
+  --ok: #1e9e68;
+  --ok-border: #8fcbb1;
+  --warn: #c48a00;
+  --warn-border: #ddc07a;
+  --danger: #d13b3b;
+  --danger-strong: #d13b3b;
+  --danger-border: #e2a3a3;
+  --danger-soft: #fbe9e9;
+  --scrim: rgba(18, 24, 38, 0.45);
+  --cat-0: #1fa89c;
+  --cat-1: #7c5ce0;
+  --cat-2: #d98a12;
+  --cat-3: #e03a6b;
+  --cat-4: #2f6fe0;
+  --cat-5: #4fa83a;
+  --cat-6: #6b7488;
+  --tier-0: #1e9e68;
+  --tier-1: #c48a00;
+  --tier-2: #d13b3b;
 }
 
 * {
   box-sizing: border-box;
 }
 
+html,
+body {
+  background: transparent;
+}
+
+/* Flat colors unless the OS really gave us a backdrop, so a failed Mica
+   never leaves the window showing the desktop through the UI. */
 body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
   font-family: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
   font-size: 13px;
+}
+
+html[data-backdrop="mica"] body,
+html[data-backdrop="acrylic"] body {
+  background: transparent;
 }
 
 #app-shell {
@@ -37,11 +128,14 @@ body {
 .folder-input {
   flex: 1;
   padding: 6px 10px;
-  border: 1px solid #2a3350;
-  border-radius: 12px;
-  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  backdrop-filter: blur(var(--glass-blur));
   color: var(--text);
   outline: none;
+  transition: border-color var(--motion) var(--motion-ease);
 }
 
 .folder-input:focus {
@@ -51,19 +145,23 @@ body {
 .btn {
   padding: 6px 18px;
   border: none;
-  border-radius: 12px;
+  border-radius: var(--radius);
   font-weight: 600;
   cursor: pointer;
+  transition:
+    background-color var(--motion) var(--motion-ease),
+    border-color var(--motion) var(--motion-ease),
+    color var(--motion) var(--motion-ease);
 }
 
 .btn.primary {
   background: var(--accent);
-  color: #0b0f1a;
+  color: var(--on-accent);
 }
 
 .btn.cancel {
-  background: #3a2431;
-  color: #ff5d5d;
+  background: var(--danger-soft);
+  color: var(--danger-strong);
 }
 
 .progress-line,
@@ -74,7 +172,7 @@ body {
 }
 
 .error-line {
-  color: #ff5d5d;
+  color: var(--danger-strong);
 }
 
 .breadcrumb {
@@ -87,6 +185,7 @@ body {
 .crumb {
   color: var(--accent);
   cursor: pointer;
+  transition: color var(--motion) var(--motion-ease);
 }
 
 .crumb:hover {
@@ -102,9 +201,11 @@ body {
   flex: none;
   height: 25%;
   overflow-y: auto;
-  border: 1px solid #2a3350;
-  border-radius: 12px;
-  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  backdrop-filter: blur(var(--glass-blur));
 }
 
 .orbit-row {
@@ -120,9 +221,11 @@ body {
   gap: 4px;
   align-self: flex-start;
   padding: 2px;
-  border: 1px solid #2a3350;
-  border-radius: 12px;
-  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  backdrop-filter: blur(var(--glass-blur));
 }
 
 .view-tab {
@@ -134,6 +237,9 @@ body {
   font: inherit;
   font-weight: 600;
   cursor: pointer;
+  transition:
+    background-color var(--motion) var(--motion-ease),
+    color var(--motion) var(--motion-ease);
 }
 
 .view-tab:hover {
@@ -141,7 +247,7 @@ body {
 }
 
 .view-tab.active {
-  background: #1c2740;
+  background: var(--selected);
   color: var(--text);
 }
 
@@ -150,13 +256,41 @@ body {
   outline-offset: 1px;
 }
 
+/* Theme toggle (Phase 7): the label is text, never color alone. */
+.theme-toggle {
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  backdrop-filter: blur(var(--glass-blur));
+  color: var(--text);
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    border-color var(--motion) var(--motion-ease),
+    background-color var(--motion) var(--motion-ease);
+}
+
+.theme-toggle:hover {
+  border-color: var(--accent);
+}
+
+.theme-toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
 .orbit-wrap {
   flex: 1;
   min-width: 0;
   min-height: 0;
-  border: 1px solid #2a3350;
-  border-radius: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
   overflow: hidden;
+  /* The canvas paints its own opaque background, so no glass blur here. */
   background: var(--panel);
 }
 
@@ -169,9 +303,11 @@ body {
 .inspector {
   flex: none;
   width: 230px;
-  border: 1px solid #2a3350;
-  border-radius: 12px;
-  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  backdrop-filter: blur(var(--glass-blur));
   padding: 10px;
   overflow: hidden;
 }
@@ -215,14 +351,14 @@ body {
 .badge {
   padding: 2px 8px;
   border-radius: 8px;
-  border: 1px solid #2a3350;
+  border: 1px solid var(--border);
   color: var(--text);
   font-size: 11px;
 }
 
 .badge.warn {
-  border-color: #6b4a2a;
-  color: #ffc857;
+  border-color: var(--warn-border);
+  color: var(--warn);
 }
 
 .tier-pill {
@@ -245,14 +381,15 @@ body {
   padding: 0 10px;
   cursor: pointer;
   white-space: nowrap;
+  transition: background-color var(--motion) var(--motion-ease);
 }
 
 .tree-row:hover {
-  background: #1a2338;
+  background: var(--hover);
 }
 
 .tree-row.selected {
-  background: #24304d;
+  background: var(--selected);
 }
 
 .tree-row.folded {
@@ -306,9 +443,11 @@ body {
 .bench-hud {
   color: var(--text);
   padding: 6px 10px;
-  border: 1px solid #2a3350;
-  border-radius: 12px;
-  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  backdrop-filter: blur(var(--glass-blur));
 }
 
 .legend {
@@ -329,12 +468,15 @@ body {
   align-items: center;
   gap: 5px;
   padding: 2px 9px;
-  border: 1px solid #2a3350;
+  border: 1px solid var(--border);
   border-radius: 10px;
-  background: var(--panel);
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  backdrop-filter: blur(var(--glass-blur));
   color: var(--text);
   font-size: 11.5px;
   cursor: pointer;
+  transition: border-color var(--motion) var(--motion-ease);
 }
 
 .legend-chip:hover {
@@ -356,9 +498,11 @@ body {
 /* ---- Action Hub (Phase 5) ---- */
 
 .action-hub {
-  border: 1px solid #2a3350;
-  border-radius: 8px;
-  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  backdrop-filter: blur(var(--glass-blur));
   padding: 8px;
   display: flex;
   flex-direction: column;
@@ -382,7 +526,7 @@ body {
 
 .hub-notice {
   font-size: 11.5px;
-  color: #ffcc66;
+  color: var(--warn);
 }
 
 .hub-actions {
@@ -392,8 +536,8 @@ body {
 }
 
 .btn.danger {
-  border-color: #7a2c3a;
-  color: #ff8fa0;
+  border-color: var(--danger-border);
+  color: var(--danger);
 }
 
 .btn.danger:disabled {
@@ -405,17 +549,19 @@ body {
   font-size: 11px;
 }
 
-.basket-list, .dryrun-report {
+.basket-list,
+.dryrun-report {
   max-height: 180px;
   overflow-y: auto;
-  border-top: 1px solid #222b45;
+  border-top: 1px solid var(--line);
   padding-top: 4px;
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
 
-.basket-row, .dryrun-row {
+.basket-row,
+.dryrun-row {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -444,7 +590,7 @@ body {
 
 .tier-pill {
   font-size: 10.5px;
-  border: 1px solid #2a3350;
+  border: 1px solid var(--border);
   border-radius: 8px;
   padding: 0 7px;
   color: var(--muted);
@@ -452,26 +598,59 @@ body {
 
 .status-pill {
   font-size: 10.5px;
-  border: 1px solid #2a3350;
+  border: 1px solid var(--border);
   border-radius: 8px;
   padding: 0 7px;
 }
 
-.status-ok .status-pill { color: #7ee2a8; border-color: #2f5c44; }
-.status-changed .status-pill { color: #ffcc66; border-color: #6b5a22; }
-.status-missing .status-pill { color: #ff8fa0; border-color: #7a2c3a; }
-.status-pill.in-use { color: #ffcc66; }
-.status-pill.probe-error { color: #ff8fa0; }
+.status-ok .status-pill {
+  color: var(--ok);
+  border-color: var(--ok-border);
+}
 
-.hub-report { display: flex; flex-direction: column; gap: 2px; }
-.hub-report-line.ok { color: #7ee2a8; font-size: 11.5px; }
-.hub-report-line.warn { color: #ffcc66; font-size: 11.5px; }
-.hub-report-line.error { color: #ff8fa0; font-size: 11.5px; }
+.status-changed .status-pill {
+  color: var(--warn);
+  border-color: var(--warn-border);
+}
+
+.status-missing .status-pill {
+  color: var(--danger);
+  border-color: var(--danger-border);
+}
+
+.status-pill.in-use {
+  color: var(--warn);
+}
+
+.status-pill.probe-error {
+  color: var(--danger);
+}
+
+.hub-report {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.hub-report-line.ok {
+  color: var(--ok);
+  font-size: 11.5px;
+}
+
+.hub-report-line.warn {
+  color: var(--warn);
+  font-size: 11.5px;
+}
+
+.hub-report-line.error {
+  color: var(--danger);
+  font-size: 11.5px;
+}
 
 .row-add {
   width: 20px;
   height: 20px;
-  border: 1px solid #2a3350;
+  border: 1px solid var(--border);
   border-radius: 5px;
   background: transparent;
   color: var(--text);
@@ -479,15 +658,27 @@ body {
   font-size: 12px;
   line-height: 1;
   margin-left: 6px;
+  transition:
+    border-color var(--motion) var(--motion-ease),
+    color var(--motion) var(--motion-ease);
 }
 
-.row-add:hover { border-color: var(--accent); color: var(--accent); }
-.row-add.disabled { cursor: not-allowed; color: #7a2c3a; border-color: #4a1e28; text-align: center; }
+.row-add:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.row-add.disabled {
+  cursor: not-allowed;
+  color: var(--danger-border);
+  border-color: var(--danger-border);
+  text-align: center;
+}
 
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(5, 8, 15, 0.7);
+  background: var(--scrim);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -496,7 +687,7 @@ body {
 
 .modal {
   background: var(--panel);
-  border: 1px solid #4a2c38;
+  border: 1px solid var(--danger-border);
   border-radius: 10px;
   padding: 16px;
   width: min(420px, 90vw);
@@ -505,11 +696,26 @@ body {
   gap: 8px;
 }
 
-.modal-warn { color: #ffcc66; font-size: 12px; }
+.modal-warn {
+  color: var(--warn);
+  font-size: 12px;
+}
 
 .modal-actions {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
   margin-top: 6px;
+}
+
+/* Reduced motion: the brief requires it respected. Canvas drill motion is
+   gated in JS (OrbitView/StrataView); this covers every CSS transition. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
 }

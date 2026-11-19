@@ -12,11 +12,12 @@ export default function App() {
     return <OrbitBench />;
   }
   const {
-    folder, phase, progress, error, rootId, view, viewMode, selectedId, tailName,
-    setFolder, startScan, cancelScan, openNode, setViewMode,
+    folder, phase, progress, error, rootId, view, viewMode, theme, selectedId, tailName,
+    setFolder, startScan, cancelScan, openNode, setViewMode, setTheme,
   } = useStore();
 
   const scanning = phase === "scanning";
+  const otherTheme = theme === "dark" ? "light" : "dark";
 
   return (
     <div id="app-shell">
@@ -37,6 +38,14 @@ export default function App() {
             Scan
           </button>
         )}
+        <button
+          className="theme-toggle"
+          onClick={() => setTheme(otherTheme)}
+          aria-label={`Switch to ${otherTheme} theme`}
+          title={`Switch to ${otherTheme} theme (now: ${theme})`}
+        >
+          {theme === "dark" ? "☀ Light" : "☾ Dark"}
+        </button>
       </header>
 
       {progress && (

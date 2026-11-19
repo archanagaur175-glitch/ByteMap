@@ -13,6 +13,7 @@ import { Inspector } from "./Inspector";
 export function StrataView() {
   const strata = useStore((s) => s.strata);
   const selectedId = useStore((s) => s.selectedId);
+  const theme = useStore((s) => s.theme);
   const openNode = useStore((s) => s.openNode);
   const select = useStore((s) => s.select);
 
@@ -59,7 +60,7 @@ export function StrataView() {
   useEffect(() => {
     draw();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hoveredId, selectedId]);
+  }, [hoveredId, selectedId, theme]);
 
   // Drill motion: the same 320ms standard the Orbit view uses, here as a
   // cross-fade (a treemap zoom would slide every tile at once). Skipped
