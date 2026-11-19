@@ -61,21 +61,23 @@ no huge tree built). T4a/T4b/T4c committed (96857b0, 6a805a8, d7ef858; memory 38
 PHASE 6 CLOSED 2026-11-18 (owner-approved Phase 7 in the same turn). T4 speed number DEFERRED, not
 passed: it is OPEN QUESTION Q4 (docs/agent/OPEN_QUESTIONS.md) with the exact elevated command; parity
 passed exactly. Never claim the MFT speed gate as met until Q4 is answered.
-PHASE 7 CODE COMPLETE (approved 2026-11-18; T2 skipped by owner). T1 Strata end to end
-(bytemap-core::strata squarified layout in a normalized 10000-unit canvas, depth 1..=4 default 3,
-4000-tile budget, MAX_CHILDREN 32, packed LE v1 + node_strata; src/strata.ts decoder with
-deepest-tile hit-test; Canvas2DStrataRenderer; StrataView with ResizeObserver + drill cross-fade;
-store {strata, viewMode, setViewMode}; openNode fetches view+orbit+strata in ONE Promise.all;
-Orbit/Strata tablist). T3 window material + themes (window-vibrancy 0.8.1 Mica -> acrylic -> none
-reported to the UI as data-backdrop; styles.css is the single color source, dark default + light per
-brief line 28, 12px radius, 24px glass blur, 180ms motion; theme.ts persists the choice in
-localStorage; colors.ts caches tokens for DOM + canvas; renderers re-read per frame). T4 gate:
-theme.test.ts proves the brief tokens in both themes, the geometry/motion scale, and the
-reduced-motion contract (CSS media block + theme.ts::reducedMotion() used by both canvas views,
-DRILL_MS 320, no hardcoded transition durations, no ungated @keyframes); docs/agent/TOKENS.md is the
-audit table. RUNTIME PROVEN: `npx tauri dev` printed `[backdrop] mica`. REMAINING: P7.GATE — the
-owner's visual pass (scan a folder, flip Orbit/Strata, flip dark/light) before Phase 8 approval.
-Nothing visual has been eyeballed by a human yet.
+PHASE 7 COMPLETE (owner-approved 2026-11-19; T2 Nebula skipped by owner). Built: Strata layered
+treemap end to end (bytemap-core::strata squarified layout in a normalized 10000-unit canvas, depth
+1..=4 default 3, 4000-tile budget, MAX_CHILDREN 32, packed LE v1 + node_strata command; src/strata.ts
+decoder with deepest-tile hit-test; Canvas2DStrataRenderer; StrataView + Orbit/Strata tablist;
+openNode fetches view+orbit+strata in ONE Promise.all) and the Windows 11 look (window-vibrancy 0.8.1
+Mica -> acrylic -> none, reported to the UI as data-backdrop and runtime-proven: `[backdrop] mica`;
+styles.css is the single color source with dark default + light per brief line 28, 12px radius, 24px
+glass blur, 180ms motion; theme.ts persists the theme in localStorage; colors.ts caches the tokens
+for DOM and canvas, renderers re-read them each frame; strata label ink follows tile lightness).
+T4 gate: theme.test.ts proves both token sets, the motion scale and the reduced-motion contract
+(CSS media block + shared theme.ts::reducedMotion()/DRILL_MS used by both views, no hardcoded
+transition durations, no ungated keyframes); docs/agent/TOKENS.md is the audit table.
+NEXT: Phase 8 (snapshots + change tracking) plan needs four owner answers before any code:
+(a) P8.T3 USN refresh needs usn-journal-rs, which the brief marks "Phase 6 only" - re-approve or
+skip; (b) snapshot location/UI (typed path vs the Tauri dialog plugin = a new dep vs a fixed
+app-data folder); (c) 1M reopen fixture (synthetic 1M-node tree vs 1M real files); (d) snapshot code
+lives in bytemap-core as a module, not a new crate. No Phase 8 code without "APPROVED: Phase 8".
 
 Environment facts: rustc/cargo 1.97.1 pinned via rust-toolchain.toml (clippy + rustfmt components);
 node 22.22.3 / npm 10.9.8; Tauri CLI comes from npm @tauri-apps/cli (no global install);
