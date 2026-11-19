@@ -73,14 +73,17 @@ for DOM and canvas, renderers re-read them each frame; strata label ink follows 
 T4 gate: theme.test.ts proves both token sets, the motion scale and the reduced-motion contract
 (CSS media block + shared theme.ts::reducedMotion()/DRILL_MS used by both views, no hardcoded
 transition durations, no ungated keyframes); docs/agent/TOKENS.md is the audit table.
-NEXT: Phase 8 (snapshots + change tracking) - all four plan questions are answered and Q5 is closed:
-(a) usn-journal-rs 0.5.0 re-approved for this phase but confined to the ELEVATED helper (it requires
-Administrator); (b) snapshots live in %LOCALAPPDATA%\ByteMap\snapshots, no dialog plugin; (c) the <1 s
-reopen gate uses a synthetic 1M-node tree; (d) snapshot code is a bytemap-core module. Q5: the codec is a
-HAND-ROLLED versioned packed LE structure (u16 version header, string arena, node arena, category map,
-scan metadata) compressed with zstd 0.14.4 - bincode is rejected (3.0.0 is a tombstone, 2.0.1 abandoned).
-Task order: T1 format -> T1b store/commands/UI -> T2 diff by path -> T3 USN refresh -> T4 CSV -> T5 1M
-reopen gate -> P8.GATE. No Phase 8 code without "APPROVED: Phase 8".
+NEXT: Phase 8 (snapshots + change tracking) is APPROVED (2026-11-19). All decisions are closed:
+usn-journal-rs 0.5.0 only in the ELEVATED helper (needs Administrator), snapshots in
+%LOCALAPPDATA%\ByteMap\snapshots with no dialog plugin, synthetic 1M-node reopen gate, snapshot code in
+bytemap-core, codec = hand-rolled versioned packed LE + zstd (NO bincode: 3.0.0 is a tombstone).
+P8.T1 DONE: bytemap-core::snapshot (magic BYTEMAPS, u16 format v1 + u16 codec v1, zstd frame with content
+checksum, header = created_at/tier/counts/totals/scan_ms/root_name/app_version/body lengths, body = node
+count + string arena + cat/tier columns + 38-byte node records; child links rebuilt in arena order;
+read_header works on a 33 KB prefix so the list UI never decompresses). Loader validates root/parent/depth/
+name bounds+UTF-8/cat+tier ids/exact lengths and refuses truncation, trailing bytes and checksum damage.
+39 core tests pass (10 new), clippy -D warnings clean, fmt clean, cargo check --workspace clean.
+NEXT TASK: P8.T1b (store + commands + UI). Then T2 diff by path, T3 USN refresh, T4 CSV, T5 1M gate.
 
 Environment facts: rustc/cargo 1.97.1 pinned via rust-toolchain.toml (clippy + rustfmt components);
 node 22.22.3 / npm 10.9.8; Tauri CLI comes from npm @tauri-apps/cli (no global install);

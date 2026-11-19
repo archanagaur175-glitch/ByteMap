@@ -10,3 +10,5 @@ authors.workspace = true
 [dependencies]
 serde = { workspace = true }
 toml = "1.2.1"
+# Snapshot body (Phase 8, Q5): zstd 0.14 is already used by bytemap-actions.
+zstd = "0.14"

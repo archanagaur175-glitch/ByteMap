@@ -123,6 +123,17 @@ impl StringArena {
     pub fn is_empty(&self) -> bool {
         self.buf.is_empty()
     }
+
+    /// Raw arena bytes, for snapshot serialization (`crate::snapshot`).
+    pub(crate) fn as_bytes(&self) -> &[u8] {
+        &self.buf
+    }
+
+    /// Rebuild an arena from snapshot bytes; names are re-validated per
+    /// node by the snapshot loader, so this does not parse anything.
+    pub(crate) fn from_bytes(buf: Vec<u8>) -> Self {
+        Self { buf }
+    }
 }
 
 /// The tree. Owns all nodes and name storage.
@@ -264,6 +275,26 @@ impl Tree {
     /// Find a direct child by name (linear scan; used by scanners to link paths).
     pub fn find_child(&self, id: NodeId, name: &str) -> Option<NodeId> {
         self.children(id).find(|&c| self.name(c) == name)
+    }
+
+    /// Read-only view of every node, for snapshot serialization.
+    pub(crate) fn node_slice(&self) -> &[Node] {
+        &self.nodes
+    }
+
+    /// Raw string arena bytes, for snapshot serialization.
+    pub(crate) fn string_bytes(&self) -> &[u8] {
+        self.strings.as_bytes()
+    }
+
+    /// Rebuild a tree from snapshot parts. The caller has already validated
+    /// the arena and every node record, including the child links.
+    pub(crate) fn from_parts(nodes: Vec<Node>, strings: Vec<u8>, root: NodeId) -> Tree {
+        Tree {
+            nodes,
+            strings: StringArena::from_bytes(strings),
+            root: Some(root),
+        }
     }
 }
 
