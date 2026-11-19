@@ -8,3 +8,4 @@
   `cargo run --release -p bytemap-scan --bin bench-mft -- --whole-volume`
   Paste the `[mft]` / `[walker]` / `BENCH-MFT` lines; `speed_gate=passed` (plus `count_drift <= 1%`)
   closes Q4. Until then, no summary may claim the MFT speed gate as met.
+- Q5 OPEN (2026-11-19): the brief approves **bincode** for snapshots, but the crate is unmaintained: 3.0.0 (2025-12-16) is a deliberate TOMBSTONE release whose lib.rs is only a compiler error pointing users elsewhere; the last usable version is 2.0.1. Options: pin bincode 2.0.1 (already on the approved list, works, no maintenance), hand-roll the packed LE format we already use for view/orbit/strata (no dep, full control, more code), or add a maintained crate (postcard/wincode - new dependency). Owner decision needed before P8.T1 writes the file format.
