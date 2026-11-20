@@ -4,6 +4,7 @@ import { StrataView } from "./StrataView";
 import { OrbitBench } from "./OrbitBench";
 import { Legend } from "./Legend";
 import { ActionHub } from "./ActionHub";
+import { Snapshots } from "./Snapshots";
 import { useStore } from "./store";
 
 export default function App() {
@@ -13,7 +14,9 @@ export default function App() {
   }
   const {
     folder, phase, progress, error, rootId, view, viewMode, theme, selectedId, tailName,
+    snapshotsOpen, loadedSnapshot,
     setFolder, startScan, cancelScan, openNode, setViewMode, setTheme,
+    openSnapshots, closeSnapshots,
   } = useStore();
 
   const scanning = phase === "scanning";
@@ -39,6 +42,15 @@ export default function App() {
           </button>
         )}
         <button
+          className="toolbar-btn"
+          onClick={() => (snapshotsOpen ? closeSnapshots() : openSnapshots())}
+          aria-expanded={snapshotsOpen}
+          aria-controls="snapshot-panel"
+          title="save this scan / reopen a saved one"
+        >
+          Snapshots
+        </button>
+        <button
           className="theme-toggle"
           onClick={() => setTheme(otherTheme)}
           aria-label={`Switch to ${otherTheme} theme`}
@@ -47,6 +59,16 @@ export default function App() {
           {theme === "dark" ? "☀ Light" : "☾ Dark"}
         </button>
       </header>
+
+      <Snapshots />
+
+      {loadedSnapshot && (
+        <div className="snapshot-banner">
+          Snapshot mode · {loadedSnapshot.name} · {loadedSnapshot.rootName} · saved{" "}
+          {new Date(loadedSnapshot.createdUnix * 1000).toLocaleString()} — rescan the folder to
+          return to live data.
+        </div>
+      )}
 
       {progress && (
         <div className="progress-line">

@@ -22,6 +22,14 @@ pub struct Session {
     pub running: bool,
     /// Cooperative cancel flag for the running scan (or the next one).
     pub cancel: Arc<AtomicBool>,
+    /// How the loaded tree was produced ("walker"/"mft"), for snapshots.
+    /// `None` until a scan completes or a snapshot is loaded.
+    pub scan_tier: Option<bytemap_core::ScanTier>,
+    /// Duration of the scan that produced the tree (0 = unknown).
+    pub scan_ms: u64,
+    /// File name of the loaded snapshot, `None` for live scan data. The UI
+    /// shows a snapshot banner while this is set.
+    pub loaded_snapshot: Option<String>,
 }
 
 impl Default for Session {
@@ -36,6 +44,9 @@ impl Default for Session {
             basket: Basket::new(),
             running: false,
             cancel: Arc::new(AtomicBool::new(false)),
+            scan_tier: None,
+            scan_ms: 0,
+            loaded_snapshot: None,
         }
     }
 }

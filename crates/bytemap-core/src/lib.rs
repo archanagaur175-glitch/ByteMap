@@ -14,9 +14,9 @@ pub use orbit::{
 };
 pub use rollup::{children_by_size, recompute_rollups};
 pub use snapshot::{
-    load_snapshot, read_header, save_snapshot, tree_counts, ScanTier, Snapshot, SnapshotCounts,
-    SnapshotError, SnapshotHeader, SnapshotMeta, MAX_HEADER_LEN, SNAPSHOT_CODEC_VERSION,
-    SNAPSHOT_FORMAT_VERSION, SNAPSHOT_MAGIC,
+    load_snapshot, read_header, save_snapshot, save_snapshot_parts, tree_counts, ScanTier,
+    Snapshot, SnapshotCounts, SnapshotError, SnapshotHeader, SnapshotMeta, MAX_HEADER_LEN,
+    SNAPSHOT_CODEC_VERSION, SNAPSHOT_FORMAT_VERSION, SNAPSHOT_MAGIC,
 };
 pub use strata::{
     build_strata, serialize_strata, Strata, StrataRect, CANVAS, MAX_RECTS, STRATA_VERSION,

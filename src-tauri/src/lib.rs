@@ -4,6 +4,7 @@
 pub mod backdrop;
 pub mod commands;
 pub mod pathres;
+pub mod snapshot_store;
 pub mod state;
 pub mod view;
 
@@ -38,6 +39,10 @@ pub fn run() {
             commands::execute_permanent,
             commands::execute_archive,
             commands::undo_last,
+            snapshot_store::snapshot_save,
+            snapshot_store::snapshot_list,
+            snapshot_store::snapshot_load,
+            snapshot_store::snapshot_delete,
             backdrop::backdrop_state,
             backdrop::set_backdrop_theme,
         ])

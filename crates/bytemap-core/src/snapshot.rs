@@ -239,30 +239,40 @@ pub fn tree_counts(tree: &Tree) -> SnapshotCounts {
 
 /// Serialize a snapshot to the bytes of one `.bms` file.
 pub fn save_snapshot(snapshot: &Snapshot) -> Result<Vec<u8>, SnapshotError> {
-    let n = snapshot.tree.len();
-    if n == 0 || snapshot.tree.root().is_none() {
+    save_snapshot_parts(&snapshot.tree, &snapshot.cats, &snapshot.meta)
+}
+
+/// Serialize borrowed parts. The app uses this to save the session tree
+/// without cloning it; the format is identical to [`save_snapshot`].
+pub fn save_snapshot_parts(
+    tree: &Tree,
+    cats: &CategoryMap,
+    meta: &SnapshotMeta,
+) -> Result<Vec<u8>, SnapshotError> {
+    let n = tree.len();
+    if n == 0 || tree.root().is_none() {
         return Err(SnapshotError::EmptyTree);
     }
     if n > u32::MAX as usize {
         return Err(SnapshotError::NodeLimit(n as u64));
     }
-    if snapshot.cats.cat.len() != n || snapshot.cats.tier.len() != n {
+    if cats.cat.len() != n || cats.tier.len() != n {
         return Err(SnapshotError::CategoryLength {
             nodes: n,
-            cats: snapshot.cats.cat.len(),
-            tiers: snapshot.cats.tier.len(),
+            cats: cats.cat.len(),
+            tiers: cats.tier.len(),
         });
     }
 
-    let counts = tree_counts(&snapshot.tree);
-    let strings = snapshot.tree.string_bytes();
+    let counts = tree_counts(tree);
+    let strings = tree.string_bytes();
     if strings.len() > u32::MAX as usize {
         return Err(SnapshotError::BadHeader("string arena is too large"));
     }
     // Save must never write a file the loader would reject: category ids are
     // fixed by the wire format (0..=6 categories, 0..=2 tiers).
-    if snapshot.cats.cat.iter().any(|&c| c > category::OTHER)
-        || snapshot.cats.tier.iter().any(|&t| t > tier::PROTECTED)
+    if cats.cat.iter().any(|&c| c > category::OTHER)
+        || cats.tier.iter().any(|&t| t > tier::PROTECTED)
     {
         return Err(SnapshotError::BadCategoryMap);
     }
@@ -274,7 +284,7 @@ pub fn save_snapshot(snapshot: &Snapshot) -> Result<Vec<u8>, SnapshotError> {
         .map_err(|e| SnapshotError::Codec(e.to_string()))?;
     enc.include_checksum(true)
         .map_err(|e| SnapshotError::Codec(e.to_string()))?;
-    write_body(&mut enc, snapshot, n, strings)?;
+    write_body(&mut enc, tree, cats, n, strings)?;
     let body = enc
         .finish()
         .map_err(|e| SnapshotError::Codec(e.to_string()))?;
@@ -284,8 +294,8 @@ pub fn save_snapshot(snapshot: &Snapshot) -> Result<Vec<u8>, SnapshotError> {
     out.extend_from_slice(&SNAPSHOT_MAGIC);
     put_u16(&mut out, SNAPSHOT_FORMAT_VERSION);
     put_u16(&mut out, SNAPSHOT_CODEC_VERSION);
-    put_u64(&mut out, snapshot.meta.created_unix);
-    out.push(snapshot.meta.tier.id());
+    put_u64(&mut out, meta.created_unix);
+    out.push(meta.tier.id());
     out.extend_from_slice(&[0, 0, 0]); // reserved
     put_u64(&mut out, counts.nodes);
     put_u64(&mut out, counts.files);
@@ -293,9 +303,9 @@ pub fn save_snapshot(snapshot: &Snapshot) -> Result<Vec<u8>, SnapshotError> {
     put_u64(&mut out, counts.denied);
     put_u64(&mut out, counts.total_logical);
     put_u64(&mut out, counts.total_on_disk);
-    put_u64(&mut out, snapshot.meta.scan_ms);
-    put_string32(&mut out, &snapshot.meta.root_name)?;
-    put_string32(&mut out, &snapshot.meta.app_version)?;
+    put_u64(&mut out, meta.scan_ms);
+    put_string32(&mut out, &meta.root_name)?;
+    put_string32(&mut out, &meta.app_version)?;
     put_u64(&mut out, uncompressed_len as u64);
     put_u64(&mut out, body.len() as u64);
     out.extend_from_slice(&body);
@@ -359,7 +369,8 @@ fn body_len(n: usize, strings_len: usize) -> usize {
 
 fn write_body<W: Write>(
     w: &mut W,
-    snapshot: &Snapshot,
+    tree: &Tree,
+    cats: &CategoryMap,
     n: usize,
     strings: &[u8],
 ) -> Result<(), SnapshotError> {
@@ -380,16 +391,16 @@ fn write_body<W: Write>(
     let mut head = Vec::with_capacity(4);
     put_u32(&mut head, n as u32);
     write(w, &head)?;
-    write(w, &snapshot.cats.cat)?;
+    write(w, &cats.cat)?;
 
     let mut head = Vec::with_capacity(4);
     put_u32(&mut head, n as u32);
     write(w, &head)?;
-    write(w, &snapshot.cats.tier)?;
+    write(w, &cats.tier)?;
 
     // One fixed 38-byte record per node, in arena order.
     let mut rec = [0u8; NODE_RECORD_LEN];
-    for node in snapshot.tree.node_slice() {
+    for node in tree.node_slice() {
         rec[0..4].copy_from_slice(&node.parent.to_le_bytes());
         rec[4..8].copy_from_slice(&node.name_off.to_le_bytes());
         rec[8..16].copy_from_slice(&node.agg_logical.to_le_bytes());

@@ -257,7 +257,8 @@ html[data-backdrop="acrylic"] body {
 }
 
 /* Theme toggle (Phase 7): the label is text, never color alone. */
-.theme-toggle {
+.theme-toggle,
+.toolbar-btn {
   padding: 6px 12px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -274,11 +275,13 @@ html[data-backdrop="acrylic"] body {
     background-color var(--motion) var(--motion-ease);
 }
 
-.theme-toggle:hover {
+.theme-toggle:hover,
+.toolbar-btn:hover {
   border-color: var(--accent);
 }
 
-.theme-toggle:focus-visible {
+.theme-toggle:focus-visible,
+.toolbar-btn:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
 }
@@ -533,6 +536,66 @@ html[data-backdrop="acrylic"] body {
   display: flex;
   gap: 6px;
   flex-wrap: wrap;
+}
+
+/* Snapshots (Phase 8): the panel reuses the Action Hub glass surface; the
+   banner states clearly that the visible tree came from a file. */
+.snapshot-banner {
+  padding: 5px 10px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  backdrop-filter: blur(var(--glass-blur));
+  color: var(--text);
+  font-size: 11.5px;
+}
+
+.snapshot-list {
+  max-height: 200px;
+  overflow-y: auto;
+  border-top: 1px solid var(--line);
+  padding-top: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.snapshot-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  min-height: 26px;
+}
+
+.snapshot-name {
+  flex: 0 1 38%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.snapshot-meta {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+  font-size: 11.5px;
+}
+
+.snapshot-row.broken .snapshot-name,
+.snapshot-row.broken .snapshot-meta {
+  color: var(--danger-strong);
+}
+
+.snapshot-empty {
+  color: var(--muted);
+  font-size: 12px;
+  padding: 4px 2px;
 }
 
 .btn.danger {

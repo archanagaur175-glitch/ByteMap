@@ -298,6 +298,11 @@ pub fn run_scan_job(
         let mut s = shared.lock().unwrap();
         s.root_path = path.clone();
         s.basket.clear();
+        // A live scan replaces any loaded snapshot: clear the banner and
+        // stale scan metadata until this run completes.
+        s.loaded_snapshot = None;
+        s.scan_tier = None;
+        s.scan_ms = 0;
     }
     let throttle = std::sync::Mutex::new(Throttle::new(Duration::from_millis(50)));
     let progress_channel = on_event.clone();
@@ -319,6 +324,15 @@ pub fn run_scan_job(
             s.tree = tree;
             s.cats = cats;
             s.running = false;
+            // Snapshot metadata: which tier produced this tree and how long
+            // it took. Saving later reads these, not the complete event.
+            s.scan_tier = Some(if tier == "mft" {
+                bytemap_core::ScanTier::Mft
+            } else {
+                bytemap_core::ScanTier::Walker
+            });
+            s.scan_ms = stats.elapsed_ms as u64;
+            s.loaded_snapshot = None;
             let mut event = json!({
                 "type": "complete",
                 "tier": tier,

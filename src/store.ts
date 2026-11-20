@@ -82,6 +82,42 @@ export interface UndoReport {
   error?: string;
 }
 
+/** One saved snapshot row (mirrors snapshot_list JSON). */
+export interface SnapshotEntry {
+  name: string;
+  bytes: number;
+  createdUnix: number;
+  rootName: string;
+  tier: string;
+  scanMs: number;
+  nodes: number;
+  files: number;
+  dirs: number;
+  denied: number;
+  totalLogical: number;
+  totalOnDisk: number;
+  /** Listed but unreadable (still deletable). */
+  error?: string;
+}
+
+/** Result of loading a snapshot (mirrors snapshot_load JSON). */
+export interface LoadedSnapshot {
+  rootId: number | null;
+  name: string;
+  rootName: string;
+  createdUnix: number;
+  tier: string;
+  scanMs: number;
+  counts: {
+    nodes: number;
+    files: number;
+    dirs: number;
+    denied: number;
+    totalLogical: number;
+    totalOnDisk: number;
+  };
+}
+
 export interface Progress {
   files: number;
   dirs: number;
@@ -121,6 +157,15 @@ interface ByteMapState {
   lastReport: ExecuteReport | null;
   /** Result of the last undo. */
   lastUndo: UndoReport | null;
+  // --- Snapshots (Phase 8) ---
+  /** Saved snapshots, newest first (header only; no body decompressed). */
+  snapshots: SnapshotEntry[];
+  /** Whether the Snapshots panel is open. */
+  snapshotsOpen: boolean;
+  /** Snapshot currently loaded into the session (null = live scan data). */
+  loadedSnapshot: { name: string; rootName: string; createdUnix: number } | null;
+  /** Last save/load/delete notice. */
+  snapshotNotice: string | null;
   // commands
   setFolder: (folder: string) => void;
   startScan: () => Promise<void>;
@@ -138,6 +183,12 @@ interface ByteMapState {
   runDryRun: () => Promise<void>;
   executeAction: (mode: "recycle" | "permanent" | "archive", confirmation?: string) => Promise<void>;
   undoLast: () => Promise<void>;
+  openSnapshots: () => void;
+  closeSnapshots: () => void;
+  refreshSnapshots: () => Promise<void>;
+  saveSnapshot: () => Promise<void>;
+  loadSnapshot: (name: string) => Promise<void>;
+  deleteSnapshot: (name: string) => Promise<void>;
 }
 
 export const useStore = create<ByteMapState>((set, get) => ({
@@ -160,6 +211,10 @@ export const useStore = create<ByteMapState>((set, get) => ({
   dryRun: null,
   lastReport: null,
   lastUndo: null,
+  snapshots: [],
+  snapshotsOpen: false,
+  loadedSnapshot: null,
+  snapshotNotice: null,
 
   setFolder: (folder) => set({ folder }),
 
@@ -174,6 +229,8 @@ export const useStore = create<ByteMapState>((set, get) => ({
       strata: null, tailName: null,
       // New scan invalidates node ids: Rust empties the basket; mirror here.
       basket: [], basketNotice: null, dryRun: null, lastReport: null, lastUndo: null,
+      // A live scan replaces snapshot mode (Rust clears its own flag too).
+      loadedSnapshot: null, snapshotNotice: null,
     });
     const channel = new Channel<string>();
     channel.onmessage = (msg) => {
@@ -369,6 +426,81 @@ export const useStore = create<ByteMapState>((set, get) => ({
       const res = await invoke<UndoReport>("undo_last");
       set({ lastUndo: res });
       await get().refreshBasket();
+    } catch (e) {
+      set({ error: String(e) });
+    }
+  },
+
+  openSnapshots: () => {
+    set({ snapshotsOpen: true });
+    void get().refreshSnapshots();
+  },
+
+  closeSnapshots: () => set({ snapshotsOpen: false }),
+
+  refreshSnapshots: async () => {
+    try {
+      const entries = await invoke<SnapshotEntry[]>("snapshot_list");
+      set({ snapshots: entries });
+    } catch (e) {
+      set({ error: String(e) });
+    }
+  },
+
+  saveSnapshot: async () => {
+    try {
+      const entry = await invoke<SnapshotEntry>("snapshot_save");
+      set({
+        snapshotNotice: `Saved ${entry.name} · ${entry.nodes.toLocaleString()} entries`,
+      });
+      await get().refreshSnapshots();
+    } catch (e) {
+      set({ error: String(e) });
+    }
+  },
+
+  loadSnapshot: async (name) => {
+    try {
+      const res = await invoke<LoadedSnapshot>("snapshot_load", { name });
+      set({
+        phase: res.rootId === null ? "idle" : "done",
+        rootId: res.rootId,
+        view: null,
+        orbit: null,
+        strata: null,
+        selectedId: null,
+        tailName: null,
+        // Snapshot node ids are snapshot-local; Rust cleared the basket.
+        basket: [],
+        basketNotice: null,
+        dryRun: null,
+        lastReport: null,
+        lastUndo: null,
+        loadedSnapshot: {
+          name: res.name,
+          rootName: res.rootName,
+          createdUnix: res.createdUnix,
+        },
+        snapshotNotice: `Loaded ${res.name}`,
+        snapshotsOpen: false,
+        // The folder input shows the snapshot's root, so a fresh scan of the
+        // same place is one click away.
+        folder: res.rootName,
+        error: null,
+      });
+      if (res.rootId !== null) {
+        await get().openNode(res.rootId);
+      }
+    } catch (e) {
+      set({ error: String(e) });
+    }
+  },
+
+  deleteSnapshot: async (name) => {
+    try {
+      await invoke("snapshot_delete", { name });
+      set({ snapshotNotice: `Deleted ${name}` });
+      await get().refreshSnapshots();
     } catch (e) {
       set({ error: String(e) });
     }

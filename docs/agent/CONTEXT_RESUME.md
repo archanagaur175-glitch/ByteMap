@@ -83,7 +83,16 @@ count + string arena + cat/tier columns + 38-byte node records; child links rebu
 read_header works on a 33 KB prefix so the list UI never decompresses). Loader validates root/parent/depth/
 name bounds+UTF-8/cat+tier ids/exact lengths and refuses truncation, trailing bytes and checksum damage.
 39 core tests pass (10 new), clippy -D warnings clean, fmt clean, cargo check --workspace clean.
-NEXT TASK: P8.T1b (store + commands + UI). Then T2 diff by path, T3 USN refresh, T4 CSV, T5 1M gate.
+P8.T1b DONE (2026-11-20): src-tauri::snapshot_store = saves under %LOCALAPPDATA%\ByteMap\snapshots as
+bytemap-<unix>[-n].bms (atomic .part + rename, borrowed save_snapshot_parts so the session lock never clones
+the tree), header-only listing (corrupt files listed with an error so they can be deleted), strict bare-name
+validation, idempotent delete; commands snapshot_save/list/load/delete registered in lib.rs. apply_snapshot
+(refused while a scan runs) swaps tree/cats/root_path/scan_tier/scan_ms, clears the basket and sets
+loaded_snapshot; new scans clear it. UI: Snapshots toolbar button + panel (save/load/delete) and a snapshot
+banner; store gained the 6 snapshot actions. 13 bytemap lib tests (2 new swap/refusal tests), 39 core,
+clippy clean, cargo check workspace clean, build + vitest 33, scripts/check.ps1 ALL CHECKS PASSED.
+NEXT TASK: P8.T2 (diff two snapshots by path: added/removed/grew/shrank + top movers, packed LE, DiffView).
+Then T3 USN refresh, T4 CSV, T5 1M gate.
 
 Environment facts: rustc/cargo 1.97.1 pinned via rust-toolchain.toml (clippy + rustfmt components);
 node 22.22.3 / npm 10.9.8; Tauri CLI comes from npm @tauri-apps/cli (no global install);
