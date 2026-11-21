@@ -204,6 +204,11 @@ fn last_component(path: &Path) -> String {
 mod tests {
     use super::*;
     use bytemap_core::tree::flags;
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    /// Fixture folders must be unique per test, not just per process: these
+    /// tests run in parallel and each one removes its folder at the end.
+    static SEQ: AtomicU64 = AtomicU64::new(0);
 
     fn record(file_ref: u64, parent_ref: u64, name: &str, attrs: u32, logical: u64) -> Record {
         Record {
@@ -218,7 +223,8 @@ mod tests {
     }
 
     fn fixture_root() -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("bytemap-mft-unit-{}", std::process::id()));
+        let n = SEQ.fetch_add(1, Ordering::Relaxed);
+        let dir = std::env::temp_dir().join(format!("bytemap-mft-unit-{}-{n}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).expect("create temp dir");
         dir

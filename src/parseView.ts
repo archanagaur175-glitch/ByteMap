@@ -60,7 +60,7 @@ export interface View {
   items: ViewItem[];
 }
 
-class Reader {
+export class Reader {
   private view: DataView;
   private pos = 0;
   private utf8 = new TextDecoder();
@@ -107,6 +107,12 @@ class Reader {
 
   str(): string {
     const len = this.u16();
+    return this.utf8.decode(this.take(len));
+  }
+
+  /** u32-length string (the diff format uses wide paths). */
+  str32(): string {
+    const len = this.u32();
     return this.utf8.decode(this.take(len));
   }
 

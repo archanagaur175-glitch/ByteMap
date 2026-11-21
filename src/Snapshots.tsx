@@ -2,8 +2,10 @@
 // without touching the disk. Rows come from the Rust header-only listing,
 // so opening the panel never decompresses a snapshot body.
 
+import { useState } from "react";
 import { formatBytes } from "./parseView";
 import { useStore, type SnapshotEntry } from "./store";
+import { DiffView } from "./DiffView";
 
 function when(unix: number): string {
   if (unix <= 0) return "unknown date";
@@ -66,14 +68,33 @@ function SnapshotRow({ entry }: { entry: SnapshotEntry }) {
 
 export function Snapshots() {
   const {
-    snapshotsOpen, snapshots, snapshotNotice, phase,
-    closeSnapshots, saveSnapshot,
+    snapshotsOpen, snapshots, snapshotNotice, phase, diff, diffLoading,
+    closeSnapshots, saveSnapshot, diffSnapshots,
   } = useStore();
+  // Local compare selection; defaults are the two newest snapshots.
+  const [pickedOld, setPickedOld] = useState<string | null>(null);
+  const [pickedNew, setPickedNew] = useState<string | null>(null);
 
   if (!snapshotsOpen) return null;
 
   // Saving needs a completed tree: a live scan completion or a loaded one.
   const canSave = phase === "done";
+
+  if (diff || diffLoading) {
+    return (
+      <section id="snapshot-panel" className="action-hub snapshot-panel" aria-label="Snapshot changes">
+        <DiffView />
+      </section>
+    );
+  }
+
+  const oldName = pickedOld ?? snapshots[1]?.name ?? "";
+  const newName = pickedNew ?? snapshots[0]?.name ?? "";
+  const canCompare =
+    snapshots.length >= 2 && oldName !== "" && newName !== "" && oldName !== newName;
+
+  const optionLabel = (entry: SnapshotEntry) =>
+    `${when(entry.createdUnix)} · ${entry.rootName}`;
 
   return (
     <section id="snapshot-panel" className="action-hub snapshot-panel" aria-label="Snapshots">
@@ -96,6 +117,47 @@ export function Snapshots() {
       </div>
 
       {snapshotNotice && <div className="hub-notice">{snapshotNotice}</div>}
+
+      {snapshots.length >= 2 && (
+        <div className="compare-bar">
+          <span className="compare-label">Compare</span>
+          <select
+            className="compare-select"
+            value={oldName}
+            onChange={(e) => setPickedOld(e.target.value)}
+            aria-label="older snapshot"
+          >
+            {snapshots.map((entry) => (
+              <option key={entry.name} value={entry.name}>
+                {optionLabel(entry)}
+              </option>
+            ))}
+          </select>
+          <span className="compare-arrow" aria-hidden="true">
+            →
+          </span>
+          <select
+            className="compare-select"
+            value={newName}
+            onChange={(e) => setPickedNew(e.target.value)}
+            aria-label="newer snapshot"
+          >
+            {snapshots.map((entry) => (
+              <option key={entry.name} value={entry.name}>
+                {optionLabel(entry)}
+              </option>
+            ))}
+          </select>
+          <button
+            className="btn tiny"
+            disabled={!canCompare}
+            onClick={() => void diffSnapshots(oldName, newName)}
+            title={canCompare ? "compare these two snapshots" : "pick two different snapshots"}
+          >
+            Compare
+          </button>
+        </div>
+      )}
 
       {snapshots.length === 0 ? (
         <div className="snapshot-empty">

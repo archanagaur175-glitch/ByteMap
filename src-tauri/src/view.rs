@@ -4,7 +4,8 @@
 
 use bytemap_core::categorizer::CategoryMap;
 use bytemap_core::{
-    build_orbit, build_strata, build_view, serialize_orbit, serialize_strata, serialize_view, Tree,
+    build_orbit, build_strata, build_view, diff_snapshots, serialize_diff, serialize_orbit,
+    serialize_strata, serialize_view, DiffError, Snapshot, Tree,
 };
 
 /// Serialize the view for `node_id` into the packed binary format
@@ -35,4 +36,14 @@ pub fn strata_bytes(
     max_rects: u32,
 ) -> Vec<u8> {
     serialize_strata(&build_strata(tree, cats, node_id, depth, max_rects))
+}
+
+/// Compare two snapshots by path and serialize the result (format documented
+/// in bytemap-core::diff). Refused when the roots differ.
+pub fn diff_bytes(old: &Snapshot, new: &Snapshot, max_entries: u32) -> Result<Vec<u8>, DiffError> {
+    Ok(serialize_diff(&diff_snapshots(
+        old,
+        new,
+        max_entries as usize,
+    )?))
 }

@@ -598,6 +598,145 @@ html[data-backdrop="acrylic"] body {
   padding: 4px 2px;
 }
 
+/* Snapshot diff (Phase 8, P8.T2): change summary cards + top-mover rows.
+   Growth is tinted like danger (space consumed), shrink like success. */
+.compare-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: 11.5px;
+}
+
+.compare-label {
+  color: var(--muted);
+}
+
+.compare-select {
+  max-width: 250px;
+  padding: 3px 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--glass);
+  color: var(--text);
+  font-size: 11.5px;
+}
+
+.compare-arrow {
+  color: var(--muted);
+}
+
+.diff-view {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.diff-summary {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.diff-card {
+  display: flex;
+  flex-direction: column;
+  min-width: 96px;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--glass);
+}
+
+.diff-card-label {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+.diff-card-count {
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.diff-card-bytes {
+  font-size: 11px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.diff-card.net.grew .diff-card-count {
+  color: var(--danger-strong);
+}
+
+.diff-card.net.shrank .diff-card-count {
+  color: var(--ok);
+}
+
+.diff-rows {
+  max-height: 220px;
+  overflow-y: auto;
+  border-top: 1px solid var(--line);
+  padding-top: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.diff-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11.5px;
+  min-height: 24px;
+}
+
+.diff-kind {
+  flex: 0 0 52px;
+  color: var(--muted);
+  font-size: 10.5px;
+  text-transform: uppercase;
+}
+
+.diff-path {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.diff-dir {
+  margin-left: 6px;
+  padding: 0 6px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 10px;
+  color: var(--muted);
+}
+
+.diff-sizes {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.diff-delta {
+  flex: 0 0 74px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.diff-row.grew .diff-delta {
+  color: var(--danger-strong);
+}
+
+.diff-row.shrank .diff-delta {
+  color: var(--ok);
+}
+
 .btn.danger {
   border-color: var(--danger-border);
   color: var(--danger);

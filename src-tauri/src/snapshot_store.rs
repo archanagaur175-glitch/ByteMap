@@ -334,6 +334,28 @@ pub fn snapshot_delete(name: String) -> Result<(), String> {
     delete_in(&snapshot_dir(), &name)
 }
 
+/// Compare two saved snapshots by path (read-only: the session tree is not
+/// touched). Travels as packed little-endian bytes via ipc::Response; the
+/// format is documented in bytemap-core::diff.
+#[tauri::command]
+pub fn snapshot_diff(
+    old: String,
+    new: String,
+    max_entries: Option<u32>,
+) -> Result<tauri::ipc::Response, String> {
+    if old == new {
+        return Err("pick two different snapshots to compare".to_string());
+    }
+    let dir = snapshot_dir();
+    let old_snapshot = load_in(&dir, &old)?;
+    let new_snapshot = load_in(&dir, &new)?;
+    let bytes = crate::view::diff_bytes(&old_snapshot, &new_snapshot, max_entries.unwrap_or(0))
+        .map_err(|e| e.to_string())?;
+    Ok(tauri::ipc::Response::new(
+        tauri::ipc::InvokeResponseBody::Raw(bytes),
+    ))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -561,6 +583,47 @@ mod tests {
         assert_eq!(s.scan_ms, 9_999);
         assert!(s.loaded_snapshot.is_none());
         drop(s);
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn diff_bytes_reads_two_saved_snapshots() {
+        let dir = temp_dir("diff");
+        let (tree, cats) = build();
+        let old = save_in(&dir, &tree, &cats, &meta(1_700_000_500)).unwrap();
+
+        // Same root, one file grew: a diff must be produced and start with
+        // the diff wire version.
+        let mut tree_new = Tree::new();
+        let root = tree_new.insert_root("C:\\fixture");
+        tree_new.insert_child(root, "docs", flags::DIR, 0, 0, 0);
+        tree_new.insert_child(root, "a.txt", 0, 7, 250, 250);
+        tree_new.insert_child(root, "b.bin", 0, 0, 50, 50);
+        recompute_rollups(&mut tree_new);
+        let cats_new = categorize(&tree_new, &Rules::default_rules());
+        let new = save_in(&dir, &tree_new, &cats_new, &meta(1_700_000_600)).unwrap();
+
+        let old_snap = load_in(&dir, &old.name).unwrap();
+        let new_snap = load_in(&dir, &new.name).unwrap();
+        let bytes = crate::view::diff_bytes(&old_snap, &new_snap, 0).unwrap();
+        assert!(bytes.len() > 74);
+        assert_eq!(
+            u16::from_le_bytes([bytes[0], bytes[1]]),
+            bytemap_core::DIFF_VERSION
+        );
+
+        // Different roots are refused, not silently compared (the tree root
+        // name is what matters; meta.root_name is just display metadata).
+        let mut tree_other = Tree::new();
+        tree_other.insert_root("D:\\other");
+        recompute_rollups(&mut tree_other);
+        let cats_other = categorize(&tree_other, &Rules::default_rules());
+        let mut other_meta = meta(1_700_000_700);
+        other_meta.root_name = "D:\\other".to_string();
+        let other = save_in(&dir, &tree_other, &cats_other, &other_meta).unwrap();
+        let other_snap = load_in(&dir, &other.name).unwrap();
+        assert!(crate::view::diff_bytes(&old_snap, &other_snap, 0).is_err());
+
         let _ = fs::remove_dir_all(&dir);
     }
 }

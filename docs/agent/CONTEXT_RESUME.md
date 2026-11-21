@@ -91,8 +91,19 @@ validation, idempotent delete; commands snapshot_save/list/load/delete registere
 loaded_snapshot; new scans clear it. UI: Snapshots toolbar button + panel (save/load/delete) and a snapshot
 banner; store gained the 6 snapshot actions. 13 bytemap lib tests (2 new swap/refusal tests), 39 core,
 clippy clean, cargo check workspace clean, build + vitest 33, scripts/check.ps1 ALL CHECKS PASSED.
-NEXT TASK: P8.T2 (diff two snapshots by path: added/removed/grew/shrank + top movers, packed LE, DiffView).
-Then T3 USN refresh, T4 CSV, T5 1M gate.
+P8.T2 DONE (2026-11-21): bytemap-core::diff walks both trees from the root, matching children by lowercase name
+(NTFS case-insensitive) in an explicit stack. Common directories are only descended into (never entries, so
+ancestors cannot double-count); added/removed directories collapse to one entry carrying their subtree total;
+files report grew/shrank logical deltas. Summary counts/bytes are complete, entries are capped (200 default,
+5000 max) and ranked by |delta|; different roots are refused. Wire v1 packed LE (header + kind/is_dir/cat/tier/
+before/after/path). src-tauri: view::diff_bytes + snapshot_diff command (read-only, refuses old == new).
+UI: compare selects in the Snapshots panel + DiffView (added/removed/grew/shrank cards, net, top-mover rows).
+50 core tests (11 new), 14 bytemap lib (1 new wiring test), vitest 40 (7 new), clippy workspace clean,
+cargo check workspace clean, scripts/check.ps1 ALL CHECKS PASSED. Also fixed a pre-existing flake: the
+mft_tree unit tests shared one PID-named temp folder while running in parallel (now per-test counter).
+NEXT TASK: P8.T3 (USN refresh: usn-journal-rs 0.5.0 ONLY in the elevated helper, delta applied to snapshot
+nodes, journal wrap/id mismatch falls back to a full rescan; needs an owner elevated run).
+Then T4 CSV, T5 1M gate.
 
 Environment facts: rustc/cargo 1.97.1 pinned via rust-toolchain.toml (clippy + rustfmt components);
 node 22.22.3 / npm 10.9.8; Tauri CLI comes from npm @tauri-apps/cli (no global install);

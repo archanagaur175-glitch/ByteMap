@@ -43,6 +43,7 @@ pub fn run() {
             snapshot_store::snapshot_list,
             snapshot_store::snapshot_load,
             snapshot_store::snapshot_delete,
+            snapshot_store::snapshot_diff,
             backdrop::backdrop_state,
             backdrop::set_backdrop_theme,
         ])

@@ -4,11 +4,13 @@
 import { create } from "zustand";
 import { invoke, Channel } from "@tauri-apps/api/core";
 import { parseView } from "./parseView";
+import { parseDiff } from "./diff";
 import { parseOrbit } from "./orbit";
 import { parseStrata } from "./strata";
 import { refreshColors } from "./colors";
 import { applyTheme, loadTheme, saveTheme } from "./theme";
 import type { View, ViewItem } from "./parseView";
+import type { Diff } from "./diff";
 import type { Orbit } from "./orbit";
 import type { Strata } from "./strata";
 import type { Theme } from "./theme";
@@ -166,6 +168,12 @@ interface ByteMapState {
   loadedSnapshot: { name: string; rootName: string; createdUnix: number } | null;
   /** Last save/load/delete notice. */
   snapshotNotice: string | null;
+  /** Snapshot diff being shown (null = the normal list). */
+  diff: Diff | null;
+  /** Names of the compared snapshots (old, new), for the diff header. */
+  diffPair: { old: string; new: string } | null;
+  /** True while two snapshots are being loaded and compared. */
+  diffLoading: boolean;
   // commands
   setFolder: (folder: string) => void;
   startScan: () => Promise<void>;
@@ -189,6 +197,8 @@ interface ByteMapState {
   saveSnapshot: () => Promise<void>;
   loadSnapshot: (name: string) => Promise<void>;
   deleteSnapshot: (name: string) => Promise<void>;
+  diffSnapshots: (oldName: string, newName: string) => Promise<void>;
+  closeDiff: () => void;
 }
 
 export const useStore = create<ByteMapState>((set, get) => ({
@@ -215,6 +225,9 @@ export const useStore = create<ByteMapState>((set, get) => ({
   snapshotsOpen: false,
   loadedSnapshot: null,
   snapshotNotice: null,
+  diff: null,
+  diffPair: null,
+  diffLoading: false,
 
   setFolder: (folder) => set({ folder }),
 
@@ -505,6 +518,29 @@ export const useStore = create<ByteMapState>((set, get) => ({
       set({ error: String(e) });
     }
   },
+
+  diffSnapshots: async (oldName, newName) => {
+    if (oldName === newName) {
+      set({ error: "Pick two different snapshots to compare." });
+      return;
+    }
+    set({ diffLoading: true, error: null });
+    try {
+      // Raw response bodies arrive as ArrayBuffer (same as node_view).
+      const buf = await invoke<ArrayBuffer>("snapshot_diff", {
+        old: oldName, new: newName, maxEntries: 500,
+      });
+      set({
+        diff: parseDiff(buf),
+        diffPair: { old: oldName, new: newName },
+        diffLoading: false,
+      });
+    } catch (e) {
+      set({ diffLoading: false, error: String(e) });
+    }
+  },
+
+  closeDiff: () => set({ diff: null, diffPair: null }),
 }));
 
 export function isFolded(item: ViewItem): boolean {
