@@ -101,9 +101,16 @@ UI: compare selects in the Snapshots panel + DiffView (added/removed/grew/shrank
 50 core tests (11 new), 14 bytemap lib (1 new wiring test), vitest 40 (7 new), clippy workspace clean,
 cargo check workspace clean, scripts/check.ps1 ALL CHECKS PASSED. Also fixed a pre-existing flake: the
 mft_tree unit tests shared one PID-named temp folder while running in parallel (now per-test counter).
-NEXT TASK: P8.T3 (USN refresh: usn-journal-rs 0.5.0 ONLY in the elevated helper, delta applied to snapshot
-nodes, journal wrap/id mismatch falls back to a full rescan; needs an owner elevated run).
-Then T4 CSV, T5 1M gate.
+NEXT TASK: P8.T4 (CSV export). P8.T3 DONE (2026-11-25, code + tests + gate; owner elevated proof pending = Q6): USN refresh is
+PATH-based (snapshots store no file ids) — helper resolves journal entries with an uncached path resolver, stats each path and
+streams UsnChange frames (protocol v3: 5 UsnRequest, 6 UsnCheckpoint, 7 UsnChange, 8 UsnDone); bytemap-core::refresh applies an
+order-independent fact list to the snapshot tree (case-insensitive paths, whole-subtree removal, MAX_REFRESH_CHANGES 500k);
+snapshot format v2 stores the checkpoint (v1 files still load, usn = None) and a whole-volume MFT scan emits UsnCheckpoint first
+(best effort). Fail-closed: journal_id mismatch, wrapped cursor, cursor ahead, a renamed FOLDER, >500k paths, unplaceable facts,
+or a count mismatch refuse with "run a full scan"; a non-NotFound stat is unresolved, never a guessed delete. snapshot_refresh
+loads the file, applies the delta, saves a NEW timestamped snapshot and loads it, so the old one survives. UI: Refresh button on
+refreshable rows + counts notice. Tests: core 65, helper 22; workspace tests, clippy, fmt, build, vitest 40 and
+scripts/check.ps1 ALL CHECKS PASSED (2026-11-25). Then T5 1M reopen gate.
 
 Environment facts: rustc/cargo 1.97.1 pinned via rust-toolchain.toml (clippy + rustfmt components);
 node 22.22.3 / npm 10.9.8; Tauri CLI comes from npm @tauri-apps/cli (no global install);
@@ -135,5 +142,5 @@ Non-negotiables:
   @types/react, @types/react-dom, @tauri-apps/api, @tauri-apps/cli (dev), vitest (dev);
   Rust: tauri, tauri-build, serde, serde_json (src-tauri only). zustand approved + installed in Phase 2.
 - Check: scripts/check.ps1 (fmt, check, clippy -D warnings, test, npm build, vitest).
-- Open item: Q4 = P6.T4 whole-volume speed gate (owner elevated run) — still unmeasured, see OPEN_QUESTIONS.md. P6.T0 signing decision CLOSED (deferred to P9.T3).
+- Open item: Q4 = P6.T4 whole-volume speed gate (owner elevated run) — still unmeasured, see OPEN_QUESTIONS.md. Q6 = P8.T3 USN refresh runtime proof (owner elevated run) — code proven by tests, no journal read yet. P6.T0 signing decision CLOSED (deferred to P9.T3).
 - Windows 11 is the target; Win10 = best-effort flat fallback, untested.

@@ -13,6 +13,10 @@
 //! | 2  | Record      | file_ref u64, parent_ref u64, logical u64, allocated u64, attrs u32, mtime i64, u16 len + UTF-8 name |
 //! | 3  | Done        | entries u64, logical_bytes u64 (session summary)                |
 //! | 4  | Error       | u16 len + UTF-8 message (terminal: the server closes after it)  |
+//! | 5  | UsnRequest  | u16 len + UTF-8 volume root, journal_id u64, since_usn i64      |
+//! | 6  | UsnCheckpoint | journal_id u64, next_usn i64 (first frame of a volume scan)    |
+//! | 7  | UsnChange   | u16 len + path, exists u8, attributes u32, logical u64, mtime i64 |
+//! | 8  | UsnDone     | changes u64, unresolved u64                                     |
 
 use std::io::{self, Read, Write};
 
@@ -22,10 +26,19 @@ pub const OP_SCAN_REQUEST: u8 = 1;
 pub const OP_RECORD: u8 = 2;
 pub const OP_DONE: u8 = 3;
 pub const OP_ERROR: u8 = 4;
+pub const OP_USN_REQUEST: u8 = 5;
+pub const OP_USN_CHECKPOINT: u8 = 6;
+pub const OP_USN_CHANGE: u8 = 7;
+pub const OP_USN_DONE: u8 = 8;
 
 /// Hard cap on one frame's payload. Names and paths are small; anything
 /// bigger is a protocol violation, not a scan.
 pub const MAX_FRAME_PAYLOAD: u32 = 64 * 1024 * 1024;
+
+/// Cap on one USN refresh, mirrored from `bytemap_core::refresh`.
+/// Deliberately duplicated: the helper does not link the app's tree crate.
+/// A bigger delta is refused rather than half-applied.
+pub const MAX_USN_CHANGES: usize = 500_000;
 
 /// One MFT record on the wire (P6.T3 streams these).
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -50,10 +63,43 @@ pub struct Record {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Frame {
-    ScanRequest { path: String },
+    ScanRequest {
+        path: String,
+    },
     Record(Record),
-    Done { entries: u64, logical_bytes: u64 },
-    Error { message: String },
+    Done {
+        entries: u64,
+        logical_bytes: u64,
+    },
+    Error {
+        message: String,
+    },
+    /// Ask for every journal entry after `since_usn` on the volume.
+    UsnRequest {
+        path: String,
+        journal_id: u64,
+        since_usn: i64,
+    },
+    /// The journal cursor a whole-volume scan started from.
+    UsnCheckpoint {
+        journal_id: u64,
+        next_usn: i64,
+    },
+    /// One changed path. `attributes` uses the Win32 `FILE_ATTRIBUTE_*`
+    /// bits (the app turns them into tree flags and sizes).
+    UsnChange {
+        path: String,
+        exists: bool,
+        attributes: u32,
+        logical: u64,
+        mtime: i64,
+    },
+    /// End of a USN refresh: distinct changes sent and journal entries that
+    /// could not be resolved to a live path.
+    UsnDone {
+        changes: u64,
+        unresolved: u64,
+    },
 }
 
 #[derive(Debug)]
@@ -190,6 +236,56 @@ fn encode(frame: &Frame) -> Vec<u8> {
             v.extend_from_slice(message.as_bytes());
             v
         }
+        Frame::UsnRequest {
+            path,
+            journal_id,
+            since_usn,
+        } => {
+            let mut v = Vec::with_capacity(3 + path.len() + 16);
+            v.push(OP_USN_REQUEST);
+            v.extend_from_slice(&(path.len() as u16).to_le_bytes());
+            v.extend_from_slice(path.as_bytes());
+            v.extend_from_slice(&journal_id.to_le_bytes());
+            v.extend_from_slice(&since_usn.to_le_bytes());
+            v
+        }
+        Frame::UsnCheckpoint {
+            journal_id,
+            next_usn,
+        } => {
+            let mut v = Vec::with_capacity(17);
+            v.push(OP_USN_CHECKPOINT);
+            v.extend_from_slice(&journal_id.to_le_bytes());
+            v.extend_from_slice(&next_usn.to_le_bytes());
+            v
+        }
+        Frame::UsnChange {
+            path,
+            exists,
+            attributes,
+            logical,
+            mtime,
+        } => {
+            let mut v = Vec::with_capacity(3 + path.len() + 1 + 4 + 8 + 8);
+            v.push(OP_USN_CHANGE);
+            v.extend_from_slice(&(path.len() as u16).to_le_bytes());
+            v.extend_from_slice(path.as_bytes());
+            v.push(u8::from(*exists));
+            v.extend_from_slice(&attributes.to_le_bytes());
+            v.extend_from_slice(&logical.to_le_bytes());
+            v.extend_from_slice(&mtime.to_le_bytes());
+            v
+        }
+        Frame::UsnDone {
+            changes,
+            unresolved,
+        } => {
+            let mut v = Vec::with_capacity(17);
+            v.push(OP_USN_DONE);
+            v.extend_from_slice(&changes.to_le_bytes());
+            v.extend_from_slice(&unresolved.to_le_bytes());
+            v
+        }
     }
 }
 
@@ -241,6 +337,55 @@ fn decode(payload: &[u8]) -> io::Result<Frame> {
             let (message, rest) = take_string(rest)?;
             trailing(rest)?;
             Ok(Frame::Error { message })
+        }
+        OP_USN_REQUEST => {
+            let (path, rest) = take_string(rest)?;
+            if rest.len() != 16 {
+                return Err(bad_frame("usn request must carry 16 bytes after the path"));
+            }
+            let journal_id = u64::from_le_bytes(rest[0..8].try_into().expect("8 bytes"));
+            let since_usn = i64::from_le_bytes(rest[8..16].try_into().expect("8 bytes"));
+            Ok(Frame::UsnRequest {
+                path,
+                journal_id,
+                since_usn,
+            })
+        }
+        OP_USN_CHECKPOINT => {
+            if rest.len() != 16 {
+                return Err(bad_frame("usn checkpoint must carry exactly 16 bytes"));
+            }
+            Ok(Frame::UsnCheckpoint {
+                journal_id: u64::from_le_bytes(rest[0..8].try_into().expect("8 bytes")),
+                next_usn: i64::from_le_bytes(rest[8..16].try_into().expect("8 bytes")),
+            })
+        }
+        OP_USN_CHANGE => {
+            let (path, rest) = take_string(rest)?;
+            if rest.len() != 21 {
+                return Err(bad_frame("usn change must carry 21 bytes after the path"));
+            }
+            let exists = match rest[0] {
+                0 => false,
+                1 => true,
+                other => return Err(bad_frame(&format!("bad exists flag {other}"))),
+            };
+            Ok(Frame::UsnChange {
+                path,
+                exists,
+                attributes: u32::from_le_bytes(rest[1..5].try_into().expect("4 bytes")),
+                logical: u64::from_le_bytes(rest[5..13].try_into().expect("8 bytes")),
+                mtime: i64::from_le_bytes(rest[13..21].try_into().expect("8 bytes")),
+            })
+        }
+        OP_USN_DONE => {
+            if rest.len() != 16 {
+                return Err(bad_frame("usn done must carry exactly 16 bytes"));
+            }
+            Ok(Frame::UsnDone {
+                changes: u64::from_le_bytes(rest[0..8].try_into().expect("8 bytes")),
+                unresolved: u64::from_le_bytes(rest[8..16].try_into().expect("8 bytes")),
+            })
         }
         _ => Err(bad_frame("unknown opcode {op}")),
     }
@@ -304,6 +449,26 @@ mod tests {
             },
             Frame::Error {
                 message: "boom".to_owned(),
+            },
+            Frame::UsnRequest {
+                path: r"C:\".to_owned(),
+                journal_id: 0x0102_0304_0506_0708,
+                since_usn: 123_456_789,
+            },
+            Frame::UsnCheckpoint {
+                journal_id: 0x0102_0304_0506_0708,
+                next_usn: 987_654_321,
+            },
+            Frame::UsnChange {
+                path: r"C:\Users\späte\file.txt".to_owned(),
+                exists: true,
+                attributes: 0x0020,
+                logical: 42,
+                mtime: 133_500_000_000_000_000,
+            },
+            Frame::UsnDone {
+                changes: 3,
+                unresolved: 1,
             },
         ];
         for frame in frames {

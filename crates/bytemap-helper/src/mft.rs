@@ -172,7 +172,7 @@ pub(super) fn handle_scan_request<S: Read + Write>(stream: &mut S, path: &str) {
 fn run_scan<S: Read + Write>(stream: &mut S, path: &str) -> Result<(), String> {
     let target = volume_device(path).ok_or_else(|| format!("not a local drive path: {path}"))?;
     if target.is_whole_volume() {
-        return run_volume_scan(stream, &target);
+        return run_volume_scan(stream, &target, path);
     }
     run_subtree_scan(stream, &target, path)
 }
@@ -184,11 +184,29 @@ fn run_scan<S: Read + Write>(stream: &mut S, path: &str) -> Result<(), String> {
 /// the request. The root record frame comes first for the same contract
 /// as the subtree path: the app learns the root's record number and
 /// attaches children by masked parent number.
-fn run_volume_scan<S: Read + Write>(stream: &mut S, target: &ScanTarget) -> Result<(), String> {
+fn run_volume_scan<S: Read + Write>(
+    stream: &mut S,
+    target: &ScanTarget,
+    path: &str,
+) -> Result<(), String> {
     let volume =
         Volume::new(&target.device).map_err(|e| format!("cannot open {}: {e}", target.device))?;
     let mut scan =
         MftScan::new(volume).map_err(|e| format!("cannot read {}: {e}", target.device))?;
+
+    // Capture the journal cursor before streaming: everything after it is a
+    // change the app can later apply to this snapshot. Best effort — a
+    // volume without an active journal still scans, just not refreshably.
+    if let Some((journal_id, next_usn)) = crate::usn::checkpoint_for(path) {
+        proto::write_frame(
+            stream,
+            &Frame::UsnCheckpoint {
+                journal_id,
+                next_usn,
+            },
+        )
+        .map_err(|e| e.to_string())?;
+    }
 
     proto::write_frame(
         stream,

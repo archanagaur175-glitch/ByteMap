@@ -468,6 +468,7 @@ mod tests {
                 tier: crate::snapshot::ScanTier::Walker,
                 root_name: root.to_string(),
                 app_version: "test".to_string(),
+                usn: None,
             },
             tree,
             cats,

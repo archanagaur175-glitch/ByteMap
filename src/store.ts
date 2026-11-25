@@ -98,8 +98,21 @@ export interface SnapshotEntry {
   denied: number;
   totalLogical: number;
   totalOnDisk: number;
+  /** Carries a USN checkpoint: the Refresh button applies the journal delta. */
+  refreshable: boolean;
   /** Listed but unreadable (still deletable). */
   error?: string;
+}
+
+/** Delta counts returned by snapshot_refresh (attached to the load payload). */
+export interface RefreshReport {
+  facts: number;
+  added: number;
+  removed: number;
+  updated: number;
+  unresolved: number;
+  nodesBefore: number;
+  nodesAfter: number;
 }
 
 /** Result of loading a snapshot (mirrors snapshot_load JSON). */
@@ -117,6 +130,42 @@ export interface LoadedSnapshot {
     denied: number;
     totalLogical: number;
     totalOnDisk: number;
+  };
+}
+
+/**
+ * Session state after a snapshot becomes the live tree. Loading and
+ * refreshing share it so both paths clear the same stale views.
+ */
+function snapshotLoadedState(
+  res: LoadedSnapshot,
+  notice: string,
+): Partial<ByteMapState> {
+  return {
+    phase: res.rootId === null ? "idle" : "done",
+    rootId: res.rootId,
+    view: null,
+    orbit: null,
+    strata: null,
+    selectedId: null,
+    tailName: null,
+    // Snapshot node ids are snapshot-local; Rust cleared the basket.
+    basket: [],
+    basketNotice: null,
+    dryRun: null,
+    lastReport: null,
+    lastUndo: null,
+    loadedSnapshot: {
+      name: res.name,
+      rootName: res.rootName,
+      createdUnix: res.createdUnix,
+    },
+    snapshotNotice: notice,
+    snapshotsOpen: false,
+    // The folder input shows the snapshot's root, so a fresh scan of the
+    // same place is one click away.
+    folder: res.rootName,
+    error: null,
   };
 }
 
@@ -196,6 +245,7 @@ interface ByteMapState {
   refreshSnapshots: () => Promise<void>;
   saveSnapshot: () => Promise<void>;
   loadSnapshot: (name: string) => Promise<void>;
+  refreshSnapshot: (name: string) => Promise<void>;
   deleteSnapshot: (name: string) => Promise<void>;
   diffSnapshots: (oldName: string, newName: string) => Promise<void>;
   closeDiff: () => void;
@@ -475,32 +525,29 @@ export const useStore = create<ByteMapState>((set, get) => ({
   loadSnapshot: async (name) => {
     try {
       const res = await invoke<LoadedSnapshot>("snapshot_load", { name });
-      set({
-        phase: res.rootId === null ? "idle" : "done",
-        rootId: res.rootId,
-        view: null,
-        orbit: null,
-        strata: null,
-        selectedId: null,
-        tailName: null,
-        // Snapshot node ids are snapshot-local; Rust cleared the basket.
-        basket: [],
-        basketNotice: null,
-        dryRun: null,
-        lastReport: null,
-        lastUndo: null,
-        loadedSnapshot: {
-          name: res.name,
-          rootName: res.rootName,
-          createdUnix: res.createdUnix,
-        },
-        snapshotNotice: `Loaded ${res.name}`,
-        snapshotsOpen: false,
-        // The folder input shows the snapshot's root, so a fresh scan of the
-        // same place is one click away.
-        folder: res.rootName,
-        error: null,
-      });
+      set(snapshotLoadedState(res, `Loaded ${res.name}`));
+      if (res.rootId !== null) {
+        await get().openNode(res.rootId);
+      }
+    } catch (e) {
+      set({ error: String(e) });
+    }
+  },
+
+  refreshSnapshot: async (name) => {
+    try {
+      const res = await invoke<LoadedSnapshot & { refresh?: RefreshReport }>(
+        "snapshot_refresh",
+        { name },
+      );
+      const r = res.refresh;
+      const notice = r
+        ? `Refreshed → ${res.name} · ${r.added} added, ${r.removed} removed, ${r.updated} updated` +
+          (r.unresolved > 0 ? `, ${r.unresolved} unresolved` : "")
+        : `Refreshed → ${res.name}`;
+      set(snapshotLoadedState(res, notice));
+      // The refresh saves a NEW snapshot, so the list gained a row.
+      await get().refreshSnapshots();
       if (res.rootId !== null) {
         await get().openNode(res.rootId);
       }

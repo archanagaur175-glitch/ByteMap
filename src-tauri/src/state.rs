@@ -30,6 +30,10 @@ pub struct Session {
     /// File name of the loaded snapshot, `None` for live scan data. The UI
     /// shows a snapshot banner while this is set.
     pub loaded_snapshot: Option<String>,
+    /// USN journal cursor captured when the tree was produced (P8.T3).
+    /// `None` when the tree cannot be refreshed (walker scan, folder MFT
+    /// scan, or an old snapshot).
+    pub usn_checkpoint: Option<bytemap_core::UsnCheckpoint>,
 }
 
 impl Default for Session {
@@ -47,6 +51,7 @@ impl Default for Session {
             scan_tier: None,
             scan_ms: 0,
             loaded_snapshot: None,
+            usn_checkpoint: None,
         }
     }
 }

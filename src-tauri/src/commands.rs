@@ -303,6 +303,7 @@ pub fn run_scan_job(
         s.loaded_snapshot = None;
         s.scan_tier = None;
         s.scan_ms = 0;
+        s.usn_checkpoint = None;
     }
     let throttle = std::sync::Mutex::new(Throttle::new(Duration::from_millis(50)));
     let progress_channel = on_event.clone();
@@ -316,7 +317,7 @@ pub fn run_scan_job(
     let outcome = scan_with_fallback(&path, &options, use_mft, &shared, Some(progress));
 
     let event = match outcome {
-        ScanOutcome::Complete(tree, stats, tier, fallback) => {
+        ScanOutcome::Complete(tree, stats, tier, fallback, usn_checkpoint) => {
             let root_id = tree.root();
             // Categories/tiers computed once per completed scan (Phase 4).
             let cats = bytemap_core::categorize(&tree, &bytemap_core::Rules::default_rules());
@@ -333,6 +334,7 @@ pub fn run_scan_job(
             });
             s.scan_ms = stats.elapsed_ms as u64;
             s.loaded_snapshot = None;
+            s.usn_checkpoint = usn_checkpoint;
             let mut event = json!({
                 "type": "complete",
                 "tier": tier,
@@ -362,7 +364,15 @@ pub fn run_scan_job(
 
 /// Result of one scan attempt, already tier-tagged.
 enum ScanOutcome {
-    Complete(Tree, ScanStats, &'static str, Option<String>),
+    /// Tree, stats, tier, fallback reason, USN checkpoint (whole-volume MFT
+    /// scans only; `None` for walker scans and folder paths).
+    Complete(
+        Tree,
+        ScanStats,
+        &'static str,
+        Option<String>,
+        Option<bytemap_core::UsnCheckpoint>,
+    ),
     Cancelled,
     Error(String),
 }
@@ -390,6 +400,7 @@ fn scan_with_fallback(
                         "the MFT tier scans whole volumes only; folder scans use the walker"
                             .to_owned(),
                     ),
+                    None,
                 ),
                 Err(ScanError::Cancelled) => ScanOutcome::Cancelled,
                 Err(e) => ScanOutcome::Error(e.to_string()),
@@ -400,19 +411,23 @@ fn scan_with_fallback(
         if let Err(spawn_error) = bytemap_scan::spawn::ensure_helper() {
             return match walker_scan(path, options, progress) {
                 Ok((tree, stats)) => {
-                    ScanOutcome::Complete(tree, stats, "walker", Some(spawn_error))
+                    ScanOutcome::Complete(tree, stats, "walker", Some(spawn_error), None)
                 }
                 Err(ScanError::Cancelled) => ScanOutcome::Cancelled,
                 Err(e) => ScanOutcome::Error(e.to_string()),
             };
         }
         match mft_scan(path, shared, progress) {
-            Ok((tree, stats)) => return ScanOutcome::Complete(tree, stats, "mft", None),
+            Ok((tree, stats, checkpoint)) => {
+                return ScanOutcome::Complete(tree, stats, "mft", None, checkpoint)
+            }
             Err(MftFailure::Cancelled) => return ScanOutcome::Cancelled,
             Err(MftFailure::Failed(reason)) => {
                 // The walker takes over; the reason travels to the UI.
                 return match walker_scan(path, options, progress) {
-                    Ok((tree, stats)) => ScanOutcome::Complete(tree, stats, "walker", Some(reason)),
+                    Ok((tree, stats)) => {
+                        ScanOutcome::Complete(tree, stats, "walker", Some(reason), None)
+                    }
                     Err(ScanError::Cancelled) => ScanOutcome::Cancelled,
                     Err(e) => ScanOutcome::Error(e.to_string()),
                 };
@@ -421,7 +436,7 @@ fn scan_with_fallback(
     }
     let _ = (use_mft, shared); // non-Windows: the MFT tier does not exist
     match walker_scan(path, options, progress) {
-        Ok((tree, stats)) => ScanOutcome::Complete(tree, stats, "walker", None),
+        Ok((tree, stats)) => ScanOutcome::Complete(tree, stats, "walker", None, None),
         Err(ScanError::Cancelled) => ScanOutcome::Cancelled,
         Err(e) => ScanOutcome::Error(e.to_string()),
     }
@@ -453,7 +468,7 @@ fn mft_scan(
     path: &std::path::Path,
     shared: &SharedSession,
     progress: Option<&dyn Fn(ScanProgress)>,
-) -> Result<(Tree, ScanStats), MftFailure> {
+) -> Result<(Tree, ScanStats, Option<bytemap_core::UsnCheckpoint>), MftFailure> {
     let started = Instant::now();
     let cancel = shared.lock().unwrap().cancel.clone();
 
@@ -478,6 +493,7 @@ fn mft_scan(
         since_progress: 0,
         stream_start: Instant::now(),
         progress,
+        checkpoint: None,
     };
     let built = build_tree_from_records(path, &mut records);
     if records.cancelled {
@@ -486,16 +502,18 @@ fn mft_scan(
     if let Some(error) = records.error.take() {
         return Err(MftFailure::Failed(error));
     }
+    let checkpoint = records.checkpoint;
     let (tree, mut stats) = built.map_err(|e| MftFailure::Failed(e.to_string()))?;
     stats.elapsed_ms = started.elapsed().as_millis();
-    Ok((tree, stats))
+    Ok((tree, stats, checkpoint))
 }
 
 /// Iterator over the helper's Record frames. Stops on `Done`, `Error`,
 /// an unexpected frame, an IO error or the cancel flag; the reason is
 /// stored in `error` (None after a clean `Done`, `cancelled` set when the
 /// caller asked to cancel). Emits throttled-caller progress every 8192
-/// records.
+/// records. A `UsnCheckpoint` frame (first frame of a whole-volume scan)
+/// is stored and skipped.
 #[cfg(windows)]
 struct RecordStream<'a> {
     client: MftClient,
@@ -507,6 +525,7 @@ struct RecordStream<'a> {
     since_progress: u64,
     stream_start: Instant,
     progress: Option<&'a dyn Fn(ScanProgress)>,
+    checkpoint: Option<bytemap_core::UsnCheckpoint>,
 }
 
 #[cfg(windows)]
@@ -514,49 +533,61 @@ impl Iterator for RecordStream<'_> {
     type Item = Record;
 
     fn next(&mut self) -> Option<Record> {
-        if self.done {
-            return None;
-        }
-        if self.cancel.load(std::sync::atomic::Ordering::Relaxed) {
-            self.cancelled = true;
-            self.done = true;
-            return None;
-        }
-        match self.client.next_frame() {
-            Ok(WireFrame::Record(record)) => {
-                self.emitted += 1;
-                self.since_progress += 1;
-                if self.since_progress >= 8192 {
-                    self.since_progress = 0;
-                    if let Some(progress) = self.progress {
-                        progress(ScanProgress {
-                            files: self.emitted,
-                            dirs: 0,
-                            denied: 0,
-                            elapsed_ms: self.stream_start.elapsed().as_millis(),
-                        });
+        loop {
+            if self.done {
+                return None;
+            }
+            if self.cancel.load(std::sync::atomic::Ordering::Relaxed) {
+                self.cancelled = true;
+                self.done = true;
+                return None;
+            }
+            match self.client.next_frame() {
+                Ok(WireFrame::Record(record)) => {
+                    self.emitted += 1;
+                    self.since_progress += 1;
+                    if self.since_progress >= 8192 {
+                        self.since_progress = 0;
+                        if let Some(progress) = self.progress {
+                            progress(ScanProgress {
+                                files: self.emitted,
+                                dirs: 0,
+                                denied: 0,
+                                elapsed_ms: self.stream_start.elapsed().as_millis(),
+                            });
+                        }
                     }
+                    return Some(record);
                 }
-                Some(record)
-            }
-            Ok(WireFrame::Done { .. }) => {
-                self.done = true;
-                None
-            }
-            Ok(WireFrame::Error { message }) => {
-                self.error = Some(message);
-                self.done = true;
-                None
-            }
-            Ok(other) => {
-                self.error = Some(format!("unexpected frame from helper: {other:?}"));
-                self.done = true;
-                None
-            }
-            Err(e) => {
-                self.error = Some(format!("helper pipe read failed: {e}"));
-                self.done = true;
-                None
+                Ok(WireFrame::UsnCheckpoint {
+                    journal_id,
+                    next_usn,
+                }) => {
+                    self.checkpoint = Some(bytemap_core::UsnCheckpoint {
+                        journal_id,
+                        next_usn,
+                    });
+                    continue;
+                }
+                Ok(WireFrame::Done { .. }) => {
+                    self.done = true;
+                    return None;
+                }
+                Ok(WireFrame::Error { message }) => {
+                    self.error = Some(message);
+                    self.done = true;
+                    return None;
+                }
+                Ok(other) => {
+                    self.error = Some(format!("unexpected frame from helper: {other:?}"));
+                    self.done = true;
+                    return None;
+                }
+                Err(e) => {
+                    self.error = Some(format!("helper pipe read failed: {e}"));
+                    self.done = true;
+                    return None;
+                }
             }
         }
     }

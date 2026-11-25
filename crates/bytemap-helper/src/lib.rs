@@ -37,13 +37,15 @@ pub const DEFAULT_PIPE_NAME: &str = r"\\.\pipe\bytemap-scan";
 /// Frame magic for every protocol message ("BYM1").
 pub const PROTOCOL_MAGIC: [u8; 4] = *b"BYM1";
 /// Protocol version. Bumped on any wire-format change. 2: Record gained
-/// `mtime` (P6.T3a).
-pub const PROTOCOL_VERSION: u16 = 2;
+/// `mtime` (P6.T3a). 3: USN refresh frames (P8.T3).
+pub const PROTOCOL_VERSION: u16 = 3;
 
 #[cfg(windows)]
 pub mod mft;
 #[cfg(windows)]
 pub mod proto;
+#[cfg(windows)]
+pub mod usn;
 
 /// Serve the named pipe until `shutdown` is observed (between clients), or
 /// — when a parent pid is being watched — until that process is gone.
@@ -219,9 +221,19 @@ mod pipe {
                 mft::handle_scan_request(stream, &path);
                 Ok(())
             }
+            Frame::UsnRequest {
+                path,
+                journal_id,
+                since_usn,
+            } => {
+                // Streams the journal delta (P8.T3). Same fail-closed rule:
+                // a journal gap or a directory rename becomes an Error frame.
+                crate::usn::handle_usn_request(stream, &path, journal_id, since_usn);
+                Ok(())
+            }
             other => Err(SessionError::Protocol(io::Error::new(
                 io::ErrorKind::InvalidData,
-                format!("expected a scan request, got {other:?}"),
+                format!("expected a scan or usn request, got {other:?}"),
             ))),
         }
     }

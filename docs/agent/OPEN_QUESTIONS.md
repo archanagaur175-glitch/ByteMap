@@ -12,3 +12,16 @@
   arena, node arena, category map, scan metadata) compressed with **zstd** (already a workspace dep, used by
   bytemap-actions), same style as the view/orbit/strata codecs. bincode is NOT used: 3.0.0 (2025-12-16) is a
   TOMBSTONE release (lib.rs is only a compiler error) and 2.0.1 is abandoned. No new dependency. See DECISIONS.md.
+- Q6 OPEN (2026-11-25): P8.T3 **USN refresh has no runtime proof yet** — the helper's journal read needs
+  Administrator, so no unit test can exercise it. Everything else is proven (core delta 14 tests, protocol
+  round-trips, helper gates, workspace tests, gate green), so this is a verification gap, not a known bug.
+  Owner steps (all on a real drive, elevation accepted at spawn):
+  1. `npm run tauri dev`, scan **C:\\** (whole volume, MFT tier), then Snapshots -> Save current.
+  2. In `%TEMP%`, create a file, write a little, delete another, and rename a FILE (not a folder).
+  3. Snapshots -> **Refresh** on the row you just saved. Expect a notice like
+     `Refreshed -> bytemap-<new>.bms · N added, M removed, K updated`, a NEW row in the list, the refreshed
+     tree loaded, and Compare (old vs new) showing exactly those paths. Paste the notice line.
+  4. Failure path (also wanted): rename a FOLDER on C:, then Refresh the newer snapshot -> it must refuse with
+     "a folder was renamed or moved since this snapshot; run a full scan" and leave the file untouched.
+  Paste the notice / error string; that closes Q6. Until then no summary may claim refresh "works on a real
+  volume" — only "proven by tests, pending an elevated run".

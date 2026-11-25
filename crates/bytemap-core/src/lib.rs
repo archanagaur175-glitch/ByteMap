@@ -3,6 +3,7 @@
 pub mod categorizer;
 pub mod diff;
 pub mod orbit;
+pub mod refresh;
 pub mod rollup;
 pub mod snapshot;
 pub mod strata;
@@ -17,11 +18,12 @@ pub use diff::{
 pub use orbit::{
     build_orbit, serialize_orbit, Orbit, OrbitArc, MAX_ARCS, MIN_SWEEP, ORBIT_VERSION, TURN,
 };
+pub use refresh::{apply_changes, ChangeFact, RefreshError, RefreshStats, MAX_REFRESH_CHANGES};
 pub use rollup::{children_by_size, recompute_rollups};
 pub use snapshot::{
     load_snapshot, read_header, save_snapshot, save_snapshot_parts, tree_counts, ScanTier,
-    Snapshot, SnapshotCounts, SnapshotError, SnapshotHeader, SnapshotMeta, MAX_HEADER_LEN,
-    SNAPSHOT_CODEC_VERSION, SNAPSHOT_FORMAT_VERSION, SNAPSHOT_MAGIC,
+    Snapshot, SnapshotCounts, SnapshotError, SnapshotHeader, SnapshotMeta, UsnCheckpoint,
+    MAX_HEADER_LEN, SNAPSHOT_CODEC_VERSION, SNAPSHOT_FORMAT_VERSION, SNAPSHOT_MAGIC,
 };
 pub use strata::{
     build_strata, serialize_strata, Strata, StrataRect, CANVAS, MAX_RECTS, STRATA_VERSION,

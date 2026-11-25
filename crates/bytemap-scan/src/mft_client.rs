@@ -126,6 +126,24 @@ impl MftClient {
         )
     }
 
+    /// Ask the helper for every USN journal entry after `since_usn` on the
+    /// volume that `path` names (P8.T3).
+    pub fn request_usn_refresh(
+        &mut self,
+        path: &str,
+        journal_id: u64,
+        since_usn: i64,
+    ) -> io::Result<()> {
+        proto::write_frame(
+            &mut self.stream,
+            &Frame::UsnRequest {
+                path: path.to_owned(),
+                journal_id,
+                since_usn,
+            },
+        )
+    }
+
     /// Read the next frame. A session always ends with `Done` or `Error`,
     /// so there is no EOF-as-success case: any read failure is an error.
     pub fn next_frame(&mut self) -> Result<Frame, MftClientError> {

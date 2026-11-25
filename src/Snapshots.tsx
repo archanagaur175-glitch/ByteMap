@@ -13,7 +13,17 @@ function when(unix: number): string {
 }
 
 function SnapshotRow({ entry }: { entry: SnapshotEntry }) {
-  const { loadSnapshot, deleteSnapshot } = useStore();
+  const { loadSnapshot, deleteSnapshot, refreshSnapshot } = useStore();
+  const [busy, setBusy] = useState(false);
+
+  const refresh = async () => {
+    setBusy(true);
+    try {
+      await refreshSnapshot(entry.name);
+    } finally {
+      setBusy(false);
+    }
+  };
 
   if (entry.error) {
     return (
@@ -48,6 +58,17 @@ function SnapshotRow({ entry }: { entry: SnapshotEntry }) {
       <span className="tier-pill" title={`scanned by the ${entry.tier} tier`}>
         {entry.tier}
       </span>
+      {entry.refreshable && (
+        <button
+          className="btn tiny"
+          onClick={() => void refresh()}
+          disabled={busy}
+          title="apply the NTFS change journal to this snapshot (saves a new snapshot)"
+          aria-label={`refresh ${entry.name}`}
+        >
+          {busy ? "Refreshing…" : "Refresh"}
+        </button>
+      )}
       <button
         className="btn tiny"
         onClick={() => void loadSnapshot(entry.name)}

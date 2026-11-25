@@ -19,6 +19,7 @@
 //!   u64 total_logical, u64 total_on_disk, u64 scan_ms
 //!   u32 + bytes  root_name    (display name of the scan root)
 //!   u32 + bytes  app_version  (writer, for the snapshot list)
+//!   u8 has_usn, and when 1: u64 journal_id, i64 next_usn (format 2+)
 //!   u64 body_uncompressed_len
 //!   u64 body_compressed_len
 //! body (zstd frame, checksum enabled):
@@ -50,8 +51,8 @@ use crate::tree::{flags, Node, NodeId, Tree, NONE};
 /// File magic. Eight bytes so a hex dump identifies the file immediately.
 pub const SNAPSHOT_MAGIC: [u8; 8] = *b"BYTEMAPS";
 
-/// v1: the Phase 8 snapshot (format structure, not the app version).
-pub const SNAPSHOT_FORMAT_VERSION: u16 = 1;
+/// v2: adds the optional USN journal checkpoint (P8.T3). v1 files still load.
+pub const SNAPSHOT_FORMAT_VERSION: u16 = 2;
 
 /// v1: body = zstd frame with content checksum.
 pub const SNAPSHOT_CODEC_VERSION: u16 = 1;
@@ -75,7 +76,7 @@ const MAX_APP_VERSION_LEN: usize = 128;
 /// Largest possible header, so a caller can read one bounded prefix from a
 /// file and call [`read_header`] without loading the body.
 pub const MAX_HEADER_LEN: usize =
-    HEADER_FIXED_LEN + 4 + MAX_ROOT_NAME_LEN + 4 + MAX_APP_VERSION_LEN + 16;
+    HEADER_FIXED_LEN + 4 + MAX_ROOT_NAME_LEN + 4 + MAX_APP_VERSION_LEN + 1 + 16 + 16;
 
 /// Which scanner produced the snapshot.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -110,6 +111,17 @@ impl ScanTier {
     }
 }
 
+/// USN journal cursor captured when a whole-volume MFT scan starts.
+///
+/// A refresh asks the helper for everything after `next_usn`; the journal
+/// id guards against the journal being deleted and recreated (a new id
+/// means the stored USN is meaningless).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct UsnCheckpoint {
+    pub journal_id: u64,
+    pub next_usn: i64,
+}
+
 /// Descriptive metadata stored with every snapshot.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SnapshotMeta {
@@ -122,6 +134,9 @@ pub struct SnapshotMeta {
     pub root_name: String,
     /// App version that wrote the file.
     pub app_version: String,
+    /// Journal cursor for an incremental refresh; `None` for snapshots the
+    /// app cannot refresh (walker scans, folder MFT snapshots, old files).
+    pub usn: Option<UsnCheckpoint>,
 }
 
 /// Totals shown in the snapshot list without loading the tree.
@@ -306,6 +321,14 @@ pub fn save_snapshot_parts(
     put_u64(&mut out, meta.scan_ms);
     put_string32(&mut out, &meta.root_name)?;
     put_string32(&mut out, &meta.app_version)?;
+    match meta.usn {
+        Some(usn) => {
+            out.push(1);
+            put_u64(&mut out, usn.journal_id);
+            put_u64(&mut out, usn.next_usn as u64);
+        }
+        None => out.push(0),
+    }
     put_u64(&mut out, uncompressed_len as u64);
     put_u64(&mut out, body.len() as u64);
     out.extend_from_slice(&body);
@@ -557,7 +580,7 @@ fn parse_header(bytes: &[u8]) -> Result<ParsedHeader, SnapshotError> {
         return Err(SnapshotError::BadMagic);
     }
     let format = r.u16()?;
-    if format != SNAPSHOT_FORMAT_VERSION {
+    if format == 0 || format > SNAPSHOT_FORMAT_VERSION {
         return Err(SnapshotError::UnsupportedFormat(format));
     }
     let codec = r.u16()?;
@@ -580,6 +603,19 @@ fn parse_header(bytes: &[u8]) -> Result<ParsedHeader, SnapshotError> {
     let scan_ms = r.u64()?;
     let root_name = r.string32(MAX_ROOT_NAME_LEN)?;
     let app_version = r.string32(MAX_APP_VERSION_LEN)?;
+    // Format 1 had no checkpoint; format 2 appends the optional USN cursor.
+    let usn = if format >= 2 {
+        match r.u8()? {
+            0 => None,
+            1 => Some(UsnCheckpoint {
+                journal_id: r.u64()?,
+                next_usn: r.u64()? as i64,
+            }),
+            _ => return Err(SnapshotError::BadHeader("bad USN checkpoint flag")),
+        }
+    } else {
+        None
+    };
     let uncompressed_len = r.u64()?;
     let compressed_len = r.u64()?;
     let body_start = r.pos;
@@ -610,6 +646,7 @@ fn parse_header(bytes: &[u8]) -> Result<ParsedHeader, SnapshotError> {
                 tier,
                 root_name,
                 app_version,
+                usn,
             },
             counts,
         },
@@ -769,6 +806,10 @@ mod tests {
             tier: ScanTier::Mft,
             root_name: "C:".to_string(),
             app_version: "0.1.0".to_string(),
+            usn: Some(UsnCheckpoint {
+                journal_id: 0x1122_3344_5566_7788,
+                next_usn: 123_456_789,
+            }),
         }
     }
 
@@ -917,10 +958,10 @@ mod tests {
         assert_eq!(load_snapshot(&bad).unwrap_err(), SnapshotError::BadMagic);
 
         let mut bad = bytes.clone();
-        bad[8..10].copy_from_slice(&2u16.to_le_bytes());
+        bad[8..10].copy_from_slice(&3u16.to_le_bytes());
         assert_eq!(
             load_snapshot(&bad).unwrap_err(),
-            SnapshotError::UnsupportedFormat(2)
+            SnapshotError::UnsupportedFormat(3)
         );
 
         let mut bad = bytes.clone();
@@ -933,6 +974,24 @@ mod tests {
         let mut bad = bytes.clone();
         bad[20] = 7; // scan tier
         assert_eq!(load_snapshot(&bad).unwrap_err(), SnapshotError::BadTier(7));
+    }
+
+    #[test]
+    fn format_v1_files_still_load_without_a_checkpoint() {
+        let bytes = save_snapshot(&build()).unwrap();
+        let parsed = parse_header(&bytes).unwrap();
+        assert_eq!(parsed.header.meta.usn, meta().usn, "v2 keeps the cursor");
+
+        // Rebuild the same file as a v1 header: drop the flag + cursor and
+        // lower the format version. The body and length fields are untouched.
+        let usn_start = parsed.body_start - 17 - 16;
+        let mut v1 = bytes[..usn_start].to_vec();
+        v1[8..10].copy_from_slice(&1u16.to_le_bytes());
+        v1.extend_from_slice(&bytes[parsed.body_start - 16..]);
+
+        let loaded = load_snapshot(&v1).unwrap();
+        assert_eq!(loaded.meta.usn, None);
+        assert_eq!(loaded.tree.len(), build().tree.len());
     }
 
     #[test]
@@ -1008,6 +1067,7 @@ mod tests {
         put_u64(&mut out, 0);
         put_string32(&mut out, "C:").unwrap();
         put_string32(&mut out, "test").unwrap();
+        out.push(0); // no USN checkpoint
         put_u64(&mut out, raw_len);
         put_u64(&mut out, compressed.len() as u64);
         out.extend_from_slice(&compressed);

@@ -243,6 +243,7 @@ version = "0.1.0"
 dependencies = [
  "embed-resource",
  "ntfs-reader",
+ "usn-journal-rs",
  "windows-sys 0.61.2",
 ]
 
@@ -1340,6 +1341,9 @@ name = "hashbrown"
 version = "0.17.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ed5909b6e89a2db4456e54cd5f673791d7eca6732202bbf2a9cc504fe2f9b84a"
+dependencies = [
+ "foldhash",
+]
 
 [[package]]
 name = "heck"
@@ -1925,6 +1929,15 @@ name = "log"
 version = "0.4.35"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5d15f86d12da44cd8d4ec3c73984537eb7f4cadcb9776a575a0a8a05ca11005c"
+
+[[package]]
+name = "lru"
+version = "0.18.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ef9ac18847474e638e3702b76c65d4eb93428471a74778ef0f1be711717f89b5"
+dependencies = [
+ "hashbrown 0.17.1",
+]
 
 [[package]]
 name = "markup5ever"
@@ -3986,6 +3999,19 @@ dependencies = [
  "regex",
  "serde",
  "url",
+]
+
+[[package]]
+name = "usn-journal-rs"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7c799efccfd938135749f8e1c5de5c15b3d76edf273f8ab8302aae4436d9992d"
+dependencies = [
+ "bitflags 2.13.2",
+ "log",
+ "lru",
+ "thiserror 2.0.21",
+ "windows",
 ]
 
 [[package]]

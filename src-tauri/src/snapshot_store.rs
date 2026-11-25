@@ -47,6 +47,9 @@ pub struct SnapshotEntry {
     pub denied: u64,
     pub total_logical: u64,
     pub total_on_disk: u64,
+    /// The snapshot carries a USN checkpoint and can be refreshed in place
+    /// (whole-volume MFT scans only).
+    pub refreshable: bool,
     /// Set when the file exists but its header cannot be parsed. The row is
     /// still listed so the user can delete the broken file.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -111,6 +114,7 @@ fn entry_from_header(name: String, bytes: u64, header: SnapshotHeader) -> Snapsh
         denied: header.counts.denied,
         total_logical: header.counts.total_logical,
         total_on_disk: header.counts.total_on_disk,
+        refreshable: header.meta.usn.is_some() && header.meta.tier == ScanTier::Mft,
         error: None,
     }
 }
@@ -145,6 +149,7 @@ fn read_entry(dir: &Path, name: &str) -> SnapshotEntry {
             denied: 0,
             total_logical: 0,
             total_on_disk: 0,
+            refreshable: false,
             error: Some(error),
         },
     }
@@ -263,6 +268,7 @@ pub fn snapshot_save(session: State<'_, SharedSession>) -> Result<SnapshotEntry,
         tier: s.scan_tier.unwrap_or(ScanTier::Walker),
         root_name: s.root_path.to_string_lossy().into_owned(),
         app_version: env!("CARGO_PKG_VERSION").to_string(),
+        usn: s.usn_checkpoint,
     };
     save_in(&snapshot_dir(), &s.tree, &s.cats, &meta)
 }
@@ -309,6 +315,7 @@ pub fn apply_snapshot(
     s.cats = snapshot.cats;
     s.basket.clear();
     s.loaded_snapshot = Some(name.to_string());
+    s.usn_checkpoint = meta.usn;
 
     Ok(json!({
         "rootId": root,
@@ -398,6 +405,7 @@ mod tests {
             tier: ScanTier::Walker,
             root_name: "C:\\fixture".to_string(),
             app_version: "test".to_string(),
+            usn: None,
         }
     }
 
@@ -510,6 +518,7 @@ mod tests {
             scan_tier: Some(ScanTier::Mft),
             scan_ms: 9_999,
             loaded_snapshot: None,
+            usn_checkpoint: None,
         };
         session
             .basket
