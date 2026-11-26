@@ -8,6 +8,7 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "build:helper": "cargo build --release -p bytemap-helper",
+    "build:portable": "powershell -File scripts/build-portable.ps1",
     "preview": "vite preview",
     "tauri": "tauri"
   },
