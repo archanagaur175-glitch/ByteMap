@@ -101,8 +101,15 @@ UI: compare selects in the Snapshots panel + DiffView (added/removed/grew/shrank
 50 core tests (11 new), 14 bytemap lib (1 new wiring test), vitest 40 (7 new), clippy workspace clean,
 cargo check workspace clean, scripts/check.ps1 ALL CHECKS PASSED. Also fixed a pre-existing flake: the
 mft_tree unit tests shared one PID-named temp folder while running in parallel (now per-test counter).
-NEXT TASK: P8.T5 (synthetic 1M-node reopen gate, < 1 s release) and then P8.GATE; the owner elevated USN proof (Q6) is
-still outstanding. P8.T4 DONE (2026-11-26): CSV export writes RFC 4180 (CRLF, minimal quoting, raw byte sizes) to
+NEXT TASK: P8.GATE (gate checklist + owner review; the owner elevated USN proof Q6 is still outstanding). P8.T5 DONE (2026-11-26):
+crates/bytemap-core/tests/reopen_1m.rs builds 1,001,001 nodes (root + 1,000 folders x 1,000 files), saves through save_snapshot,
+writes the real .bms, then times fs::read + load_snapshot = the user-visible "reopen": 232/233 ms in release (target < 1000 ms;
+save 518-635 ms reported, not gated; snapshot 7.78 MB). The timed test is #[ignore]d with the exact command in its reason
+(cargo test --release -p bytemap-core --test reopen_1m -- --ignored --nocapture) so the normal gate stays fast; a small always-on
+round-trip test in the same file covers the codec in every build. Fixture gotcha: TREE flags are not Win32 attributes —
+flags::DIR = 1, not 0x10; using 0x10 made roll-ups treat folders as files (root total 0). Workspace tests, clippy, fmt, build,
+vitest 46 and scripts/check.ps1 ALL CHECKS PASSED (2026-11-26).
+P8.T4 DONE (2026-11-26): CSV export writes RFC 4180 (CRLF, minimal quoting, raw byte sizes) to
 %LOCALAPPDATA%\ByteMap\exports\bytemap-<scope>-<unix>[-n].csv (BYTEMAP_EXPORT_DIR overrides; NO dialog plugin) and returns
 the absolute path; scope "view" = every direct child of the open node sorted by size (not the folded top-200 — a folded row
 has no path), scope "basket" = staging order with the kind read from the current tree (empty for a stale id); cap 100k rows
