@@ -5,7 +5,7 @@ Project: ByteMap — native Windows 11 disk-space analyzer. Tauri 2 + Rust works
 Licence: MIT OR Apache-2.0 (dual). Repo: C:\Users\archa\Documents\ByteMap.
 Remote: origin https://github.com/archanagaur175-glitch/ByteMap (branch main, push authorized after each task).
 
-Current state: // P5 (2026-11-17): T1-T7 COMPLETE, gate check green, AWAITING OWNER CODE REVIEW - basket + dry-run/stale guard + Restart Manager probe + recycle + permanent-delete(typed PERMANENT) + JSONL undo journal + undo + archive .bma (zstd+sha2, verify-then-remove) + Action Hub UI; tests 26+5+2 Rust + 10 vitest; deps added: trash 5.3, zstd 0.14.4, sha2 0.11.1 (all owner-approved). PHASES 0+1+2 COMPLETE, gates green (2026-11-15). Arena tree + roll-ups in bytemap-core;
+Phase history (chronological; the current state is the "PHASE 8 CLOSED" line near the end of this file) — P5 (2026-11-17): T1-T7 COMPLETE, gate check green, AWAITING OWNER CODE REVIEW - basket + dry-run/stale guard + Restart Manager probe + recycle + permanent-delete(typed PERMANENT) + JSONL undo journal + undo + archive .bma (zstd+sha2, verify-then-remove) + Action Hub UI; tests 26+5+2 Rust + 10 vitest; deps added: trash 5.3, zstd 0.14.4, sha2 0.11.1 (all owner-approved). PHASES 0+1+2 COMPLETE, gates green (2026-11-15). Arena tree + roll-ups in bytemap-core;
 walker scanner (jwalk 0.9) with all scanner rules verified by fixture tests; bench-walk binary with
 reusable %TEMP%\bytemap-bench-100k fixture (101,112 entries: cold 71.9k/s, warm 73.3k/s, best 82.0k/s,
 with hardlink dedup 38.0k/s; target 33.3k/s met; Defender real-time was ON). Phase 2 done: start_scan/
@@ -101,7 +101,7 @@ UI: compare selects in the Snapshots panel + DiffView (added/removed/grew/shrank
 50 core tests (11 new), 14 bytemap lib (1 new wiring test), vitest 40 (7 new), clippy workspace clean,
 cargo check workspace clean, scripts/check.ps1 ALL CHECKS PASSED. Also fixed a pre-existing flake: the
 mft_tree unit tests shared one PID-named temp folder while running in parallel (now per-test counter).
-NEXT: OWNER REVIEW of P8.GATE (checklist green 2026-11-26; on approval close Phase 8 and ask for Phase 9). The owner elevated
+PHASE 8 CLOSED 2026-11-26 (owner approved the gate). NEXT: Phase 9 (Packaging and hardening) awaits owner approval — do not start it. The owner elevated
 USN proof (Q6) and the MFT whole-volume speed gate (Q4) are STILL OUTSTANDING and must not be claimed met. P8.GATE DONE
 (2026-11-26): scripts/check.ps1 ALL CHECKS PASSED (core 65, helper 22, scan 4+11+8+1+9, actions 26, bytemap 21+4, reopen_1m
 1+1 ignored, vitest 46; clippy/fmt/build clean); release reopen re-run reopen_ms=250 (PASS); usn-journal-rs only in the helper
