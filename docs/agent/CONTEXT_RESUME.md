@@ -101,9 +101,12 @@ UI: compare selects in the Snapshots panel + DiffView (added/removed/grew/shrank
 50 core tests (11 new), 14 bytemap lib (1 new wiring test), vitest 40 (7 new), clippy workspace clean,
 cargo check workspace clean, scripts/check.ps1 ALL CHECKS PASSED. Also fixed a pre-existing flake: the
 mft_tree unit tests shared one PID-named temp folder while running in parallel (now per-test counter).
-PHASE 9 IN PROGRESS (approved 2026-11-26). NEXT: P9.T3 signing — an owner decision (no certificate exists; ship unsigned vs buy
-OV/EV vs self-sign), then T4 a11y/perf audit, T5 clean install/uninstall on a fresh Win11 VM. Q6 (elevated USN proof) and Q4
-(MFT whole-volume speed gate) are STILL OUTSTANDING and must not be claimed met. P9.T2 DONE (2026-11-26): `scripts/build-portable.ps1`
+PHASE 9 IN PROGRESS (approved 2026-11-26). NEXT: P9.T4 accessibility/perf audit, then T5 clean install/uninstall on a fresh
+Win11 VM. Q6 (elevated USN proof) and Q4 (MFT whole-volume speed gate) are STILL OUTSTANDING and must not be claimed met.
+P9.T3 DONE (2026-11-26, owner decision): v0.1.0 ships UNSIGNED. No certificate, no signCommand, no new dep. Verified with
+Get-AuthenticodeSignature: installer / bytemap.exe / bytemap-helper.exe all NotSigned (signer none); the zip reports UnknownError
+because zips have no Authenticode container. State honestly: SmartScreen "unknown publisher", helper still UACs. Revisit before a
+public release (OV/EV cert, timestamp, sign exe+helper+installer; reputation accrues per cert). P9.T2 DONE (2026-11-26): `scripts/build-portable.ps1`
 (npm `build:portable`) -> `target/release/bundle/portable/ByteMap-0.1.0-portable-x64.zip`, 3,506,721 bytes, SHA256 41537050...8E59,
 5 files. It runs `tauri build --no-bundle` (embedded frontend; NOT plain cargo) + `cargo build --release -p bytemap-helper`, stages
 bytemap.exe + bytemap-helper.exe + README + both licences in one versioned folder, and zips it. Verified by extracting to %TEMP%:
