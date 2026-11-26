@@ -9,6 +9,7 @@ import { parseOrbit } from "./orbit";
 import { parseStrata } from "./strata";
 import { refreshColors } from "./colors";
 import { applyTheme, loadTheme, saveTheme } from "./theme";
+import { exportCsv, formatExportNotice } from "./export";
 import type { View, ViewItem } from "./parseView";
 import type { Diff } from "./diff";
 import type { Orbit } from "./orbit";
@@ -162,6 +163,7 @@ function snapshotLoadedState(
     },
     snapshotNotice: notice,
     snapshotsOpen: false,
+    exportNotice: null,
     // The folder input shows the snapshot's root, so a fresh scan of the
     // same place is one click away.
     folder: res.rootName,
@@ -223,6 +225,9 @@ interface ByteMapState {
   diffPair: { old: string; new: string } | null;
   /** True while two snapshots are being loaded and compared. */
   diffLoading: boolean;
+  // --- CSV export (P8.T4) ---
+  /** Last export notice (row count + file path), null = none yet. */
+  exportNotice: string | null;
   // commands
   setFolder: (folder: string) => void;
   startScan: () => Promise<void>;
@@ -249,6 +254,8 @@ interface ByteMapState {
   deleteSnapshot: (name: string) => Promise<void>;
   diffSnapshots: (oldName: string, newName: string) => Promise<void>;
   closeDiff: () => void;
+  exportViewCsv: () => Promise<void>;
+  exportBasketCsv: () => Promise<void>;
 }
 
 export const useStore = create<ByteMapState>((set, get) => ({
@@ -278,6 +285,7 @@ export const useStore = create<ByteMapState>((set, get) => ({
   diff: null,
   diffPair: null,
   diffLoading: false,
+  exportNotice: null,
 
   setFolder: (folder) => set({ folder }),
 
@@ -293,7 +301,7 @@ export const useStore = create<ByteMapState>((set, get) => ({
       // New scan invalidates node ids: Rust empties the basket; mirror here.
       basket: [], basketNotice: null, dryRun: null, lastReport: null, lastUndo: null,
       // A live scan replaces snapshot mode (Rust clears its own flag too).
-      loadedSnapshot: null, snapshotNotice: null,
+      loadedSnapshot: null, snapshotNotice: null, exportNotice: null,
     });
     const channel = new Channel<string>();
     channel.onmessage = (msg) => {
@@ -588,6 +596,30 @@ export const useStore = create<ByteMapState>((set, get) => ({
   },
 
   closeDiff: () => set({ diff: null, diffPair: null }),
+
+  exportViewCsv: async () => {
+    const { view } = get();
+    if (!view) {
+      set({ error: "open a folder first, then export its items" });
+      return;
+    }
+    try {
+      // `requested` is the node the view belongs to — not the hovered row.
+      const res = await exportCsv("view", view.requested);
+      set({ exportNotice: formatExportNotice(res), error: null });
+    } catch (e) {
+      set({ error: String(e) });
+    }
+  },
+
+  exportBasketCsv: async () => {
+    try {
+      const res = await exportCsv("basket");
+      set({ exportNotice: formatExportNotice(res), error: null });
+    } catch (e) {
+      set({ error: String(e) });
+    }
+  },
 }));
 
 export function isFolded(item: ViewItem): boolean {

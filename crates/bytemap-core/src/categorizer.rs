@@ -230,7 +230,8 @@ fn file_ext(name: &str) -> Option<String> {
     Some(name[dot + 1..].to_ascii_lowercase())
 }
 
-fn category_name(id: u8) -> &'static str {
+/// Human-readable name for a wire category id; unknown ids read as "other".
+pub fn category_name(id: u8) -> &'static str {
     match id {
         category::CODE => "code",
         category::SYSTEM => "system",
@@ -239,6 +240,18 @@ fn category_name(id: u8) -> &'static str {
         category::DOCUMENTS => "documents",
         category::APPS => "apps",
         _ => "other",
+    }
+}
+
+/// Human-readable name for a wire safety-tier id. Unknown ids are NOT
+/// mapped to "review": an id outside the allowlist is reported as "unknown"
+/// so a CSV never implies a tier the app did not assign.
+pub fn tier_name(id: u8) -> &'static str {
+    match id {
+        tier::SAFE => "safe",
+        tier::REVIEW => "review",
+        tier::PROTECTED => "protected",
+        _ => "unknown",
     }
 }
 

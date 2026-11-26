@@ -532,6 +532,13 @@ html[data-backdrop="acrylic"] body {
   color: var(--warn);
 }
 
+/* Export confirmation (P8.T4): the path is the point, so allow wrapping. */
+.export-notice {
+  padding: 2px 14px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
 .hub-actions {
   display: flex;
   gap: 6px;

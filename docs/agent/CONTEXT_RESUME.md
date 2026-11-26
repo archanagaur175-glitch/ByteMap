@@ -101,7 +101,16 @@ UI: compare selects in the Snapshots panel + DiffView (added/removed/grew/shrank
 50 core tests (11 new), 14 bytemap lib (1 new wiring test), vitest 40 (7 new), clippy workspace clean,
 cargo check workspace clean, scripts/check.ps1 ALL CHECKS PASSED. Also fixed a pre-existing flake: the
 mft_tree unit tests shared one PID-named temp folder while running in parallel (now per-test counter).
-NEXT TASK: P8.T4 (CSV export). P8.T3 DONE (2026-11-25, code + tests + gate; owner elevated proof pending = Q6): USN refresh is
+NEXT TASK: P8.T5 (synthetic 1M-node reopen gate, < 1 s release) and then P8.GATE; the owner elevated USN proof (Q6) is
+still outstanding. P8.T4 DONE (2026-11-26): CSV export writes RFC 4180 (CRLF, minimal quoting, raw byte sizes) to
+%LOCALAPPDATA%\ByteMap\exports\bytemap-<scope>-<unix>[-n].csv (BYTEMAP_EXPORT_DIR overrides; NO dialog plugin) and returns
+the absolute path; scope "view" = every direct child of the open node sorted by size (not the folded top-200 — a folded row
+has no path), scope "basket" = staging order with the kind read from the current tree (empty for a stale id); cap 100k rows
+with an explicit truncated/totalRows; refused while a scan runs, with no tree, or for an unknown scope. UI: Export CSV in the
+toolbar, CSV in the Action Hub, notice with counts + full path. categorizer::{category_name,tier_name} are public now (unknown
+tier reads "unknown"). Tests: bytemap lib 21 (7 new), vitest 46 (6 new), workspace tests + clippy + fmt + build green,
+scripts/check.ps1 ALL CHECKS PASSED (2026-11-26).
+P8.T3 DONE (2026-11-25, code + tests + gate; owner elevated proof pending = Q6): USN refresh is
 PATH-based (snapshots store no file ids) — helper resolves journal entries with an uncached path resolver, stats each path and
 streams UsnChange frames (protocol v3: 5 UsnRequest, 6 UsnCheckpoint, 7 UsnChange, 8 UsnDone); bytemap-core::refresh applies an
 order-independent fact list to the snapshot tree (case-insensitive paths, whole-subtree removal, MAX_REFRESH_CHANGES 500k);
@@ -110,7 +119,7 @@ snapshot format v2 stores the checkpoint (v1 files still load, usn = None) and a
 or a count mismatch refuse with "run a full scan"; a non-NotFound stat is unresolved, never a guessed delete. snapshot_refresh
 loads the file, applies the delta, saves a NEW timestamped snapshot and loads it, so the old one survives. UI: Refresh button on
 refreshable rows + counts notice. Tests: core 65, helper 22; workspace tests, clippy, fmt, build, vitest 40 and
-scripts/check.ps1 ALL CHECKS PASSED (2026-11-25). Then T5 1M reopen gate.
+scripts/check.ps1 ALL CHECKS PASSED (2026-11-25).
 
 Environment facts: rustc/cargo 1.97.1 pinned via rust-toolchain.toml (clippy + rustfmt components);
 node 22.22.3 / npm 10.9.8; Tauri CLI comes from npm @tauri-apps/cli (no global install);

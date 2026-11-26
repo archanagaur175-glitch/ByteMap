@@ -3,6 +3,7 @@
 
 pub mod backdrop;
 pub mod commands;
+pub mod export;
 pub mod pathres;
 pub mod refresh;
 pub mod snapshot_store;
@@ -46,6 +47,7 @@ pub fn run() {
             snapshot_store::snapshot_delete,
             snapshot_store::snapshot_diff,
             refresh::snapshot_refresh,
+            export::export_csv,
             backdrop::backdrop_state,
             backdrop::set_backdrop_theme,
         ])

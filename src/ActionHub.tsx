@@ -54,6 +54,7 @@ export function ActionHub() {
   const {
     basket, basketNotice, dryRun, lastReport, lastUndo,
     removeFromBasket, clearBasket, addToBasket, runDryRun, executeAction, undoLast,
+    exportBasketCsv,
   } = useStore();
 
   const [confirmText, setConfirmText] = useState("");
@@ -97,6 +98,14 @@ export function ActionHub() {
       <div className="hub-actions">
         <button className="btn" onClick={() => void runDryRun()} disabled={basket.length === 0}>
           Dry run
+        </button>
+        <button
+          className="btn"
+          onClick={() => void exportBasketCsv()}
+          disabled={basket.length === 0}
+          title="write the staged list to a CSV in %LOCALAPPDATA%\ByteMap\exports"
+        >
+          CSV
         </button>
         <button className="btn primary" onClick={() => void executeAction("recycle")} disabled={basket.length === 0}>
           Recycle

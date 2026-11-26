@@ -10,7 +10,7 @@ pub mod strata;
 pub mod tree;
 pub mod view;
 
-pub use categorizer::{categorize, Category, Rules, Tier, DEFAULT_RULES};
+pub use categorizer::{categorize, category_name, tier_name, Category, Rules, Tier, DEFAULT_RULES};
 pub use diff::{
     diff_snapshots, serialize_diff, Diff, DiffEntry, DiffError, DiffKind, DiffSummary,
     DEFAULT_DIFF_ENTRIES, DIFF_VERSION, MAX_DIFF_ENTRIES,

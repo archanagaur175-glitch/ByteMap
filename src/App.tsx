@@ -14,9 +14,9 @@ export default function App() {
   }
   const {
     folder, phase, progress, error, rootId, view, viewMode, theme, selectedId, tailName,
-    snapshotsOpen, loadedSnapshot,
+    snapshotsOpen, loadedSnapshot, exportNotice,
     setFolder, startScan, cancelScan, openNode, setViewMode, setTheme,
-    openSnapshots, closeSnapshots,
+    openSnapshots, closeSnapshots, exportViewCsv,
   } = useStore();
 
   const scanning = phase === "scanning";
@@ -58,6 +58,14 @@ export default function App() {
         >
           {theme === "dark" ? "☀ Light" : "☾ Dark"}
         </button>
+        <button
+          className="toolbar-btn"
+          onClick={() => void exportViewCsv()}
+          disabled={phase !== "done"}
+          title="write this folder's items to a CSV in %LOCALAPPDATA%\ByteMap\exports"
+        >
+          Export CSV
+        </button>
       </header>
 
       <Snapshots />
@@ -79,6 +87,7 @@ export default function App() {
         </div>
       )}
       {error && <div className="error-line">error: {error}</div>}
+      {exportNotice && <div className="hub-notice export-notice">{exportNotice}</div>}
 
       {view && (
         <>
