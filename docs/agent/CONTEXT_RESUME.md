@@ -101,7 +101,13 @@ UI: compare selects in the Snapshots panel + DiffView (added/removed/grew/shrank
 50 core tests (11 new), 14 bytemap lib (1 new wiring test), vitest 40 (7 new), clippy workspace clean,
 cargo check workspace clean, scripts/check.ps1 ALL CHECKS PASSED. Also fixed a pre-existing flake: the
 mft_tree unit tests shared one PID-named temp folder while running in parallel (now per-test counter).
-NEXT TASK: P8.GATE (gate checklist + owner review; the owner elevated USN proof Q6 is still outstanding). P8.T5 DONE (2026-11-26):
+NEXT: OWNER REVIEW of P8.GATE (checklist green 2026-11-26; on approval close Phase 8 and ask for Phase 9). The owner elevated
+USN proof (Q6) and the MFT whole-volume speed gate (Q4) are STILL OUTSTANDING and must not be claimed met. P8.GATE DONE
+(2026-11-26): scripts/check.ps1 ALL CHECKS PASSED (core 65, helper 22, scan 4+11+8+1+9, actions 26, bytemap 21+4, reopen_1m
+1+1 ignored, vitest 46; clippy/fmt/build clean); release reopen re-run reopen_ms=250 (PASS); usn-journal-rs only in the helper
+manifest, Cargo.lock gained exactly lru + usn-journal-rs, no dialog/HTTP/telemetry deps or calls; tree clean at 6afc827 and
+1c07508..6afc827 pushed. Code review of refresh.rs + snapshot_store.rs found no defect (unique_path never overwrites: every
+candidate is exists()-checked, then it errors). No webview click-through of the Phase 8 UI yet. P8.T5 DONE (2026-11-26):
 crates/bytemap-core/tests/reopen_1m.rs builds 1,001,001 nodes (root + 1,000 folders x 1,000 files), saves through save_snapshot,
 writes the real .bms, then times fs::read + load_snapshot = the user-visible "reopen": 232/233 ms in release (target < 1000 ms;
 save 518-635 ms reported, not gated; snapshot 7.78 MB). The timed test is #[ignore]d with the exact command in its reason
