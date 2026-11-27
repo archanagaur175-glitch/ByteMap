@@ -15,6 +15,8 @@ export function StrataView() {
   const strata = useStore((s) => s.strata);
   const selectedId = useStore((s) => s.selectedId);
   const theme = useStore((s) => s.theme);
+  const tailName = useStore((s) => s.tailName);
+  const totalChildren = useStore((s) => s.view?.totalChildren ?? 0);
   const openNode = useStore((s) => s.openNode);
   const select = useStore((s) => s.select);
 
@@ -113,11 +115,13 @@ export function StrataView() {
     hoveredId === null ? null : (strata.rects.find((r) => r.id === hoveredId) ?? null);
 
   return (
-    <div className="orbit-row">
+    <div className="orbit-row" id="visual-view" role="tabpanel" aria-label="Strata view">
       <div className="orbit-wrap" ref={wrapRef}>
         <canvas
           ref={canvasRef}
           className="orbit-canvas"
+          role="img"
+          aria-label={`Strata map of ${tailName ?? "the scanned folder"} with ${totalChildren.toLocaleString()} items. Use the folder list below for keyboard access.`}
           onMouseMove={(e) => {
             const tile = pointTile(e);
             setHoveredId(tile ? tile.id : null);

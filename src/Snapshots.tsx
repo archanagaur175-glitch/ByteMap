@@ -63,6 +63,7 @@ function SnapshotRow({ entry }: { entry: SnapshotEntry }) {
           className="btn tiny"
           onClick={() => void refresh()}
           disabled={busy}
+          aria-busy={busy}
           title="apply the NTFS change journal to this snapshot (saves a new snapshot)"
           aria-label={`refresh ${entry.name}`}
         >
@@ -137,10 +138,14 @@ export function Snapshots() {
         </button>
       </div>
 
-      {snapshotNotice && <div className="hub-notice">{snapshotNotice}</div>}
+      {snapshotNotice && (
+        <div className="hub-notice" role="status" aria-live="polite">
+          {snapshotNotice}
+        </div>
+      )}
 
       {snapshots.length >= 2 && (
-        <div className="compare-bar">
+        <div className="compare-bar" role="group" aria-label="Compare snapshots">
           <span className="compare-label">Compare</span>
           <select
             className="compare-select"

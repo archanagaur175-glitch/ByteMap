@@ -22,6 +22,7 @@
   --bg: #0b0f1a;
   --text: #e8ecf6;
   --accent: #6ea8ff;
+  --link: #6ea8ff;
   --on-accent: #0b0f1a;
   --panel: #131a2b;
   --glass: rgba(19, 26, 43, 0.72);
@@ -59,20 +60,21 @@
   --bg: #f3f5fa;
   --text: #121826;
   --accent: #2f6fe0;
+  --link: #255bc0;
   --on-accent: #ffffff;
   --panel: #ffffff;
   --glass: rgba(255, 255, 255, 0.72);
-  --muted: #6b7488;
+  --muted: #5c6579;
   --border: #d5dbe8;
   --line: #e4e9f2;
   --hover: #e8eefa;
   --selected: #d9e4f8;
-  --ok: #1e9e68;
+  --ok: #157a4f;
   --ok-border: #8fcbb1;
-  --warn: #c48a00;
+  --warn: #8a6200;
   --warn-border: #ddc07a;
-  --danger: #d13b3b;
-  --danger-strong: #d13b3b;
+  --danger: #b02a2a;
+  --danger-strong: #b02a2a;
   --danger-border: #e2a3a3;
   --danger-soft: #fbe9e9;
   --scrim: rgba(18, 24, 38, 0.45);
@@ -142,6 +144,26 @@ html[data-backdrop="acrylic"] body {
   border-color: var(--accent);
 }
 
+/* One visible focus contract for every interactive element. Keyboard users
+   get the same 2px accent ring the view tabs already had. */
+.btn:focus-visible,
+.folder-input:focus-visible,
+.crumb:focus-visible,
+.legend-chip:focus-visible,
+.row-add:focus-visible,
+.tree-row:focus-visible,
+.compare-select:focus-visible,
+.view-tab:focus-visible,
+.theme-toggle:focus-visible,
+.toolbar-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.tree-row:focus-visible {
+  outline-offset: -2px;
+}
+
 .btn {
   padding: 6px 18px;
   border: none;
@@ -183,7 +205,11 @@ html[data-backdrop="acrylic"] body {
 }
 
 .crumb {
-  color: var(--accent);
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  color: var(--link);
   cursor: pointer;
   transition: color var(--motion) var(--motion-ease);
 }
@@ -195,6 +221,7 @@ html[data-backdrop="acrylic"] body {
 .crumb.current {
   color: var(--text);
   cursor: default;
+  font-weight: 600;
 }
 
 .tree-list {
@@ -251,11 +278,6 @@ html[data-backdrop="acrylic"] body {
   color: var(--text);
 }
 
-.view-tab:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
-}
-
 /* Theme toggle (Phase 7): the label is text, never color alone. */
 .theme-toggle,
 .toolbar-btn {
@@ -278,12 +300,6 @@ html[data-backdrop="acrylic"] body {
 .theme-toggle:hover,
 .toolbar-btn:hover {
   border-color: var(--accent);
-}
-
-.theme-toggle:focus-visible,
-.toolbar-btn:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
 }
 
 .orbit-wrap {
@@ -414,6 +430,12 @@ html[data-backdrop="acrylic"] body {
   color: var(--muted);
   font-variant-numeric: tabular-nums;
   font-family: "Cascadia Mono", Consolas, monospace;
+}
+
+.tree-action-cell {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 4px;
 }
 
 .tier-dir {

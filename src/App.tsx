@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import { TreeList } from "./TreeList";
 import { OrbitView } from "./OrbitView";
 import { StrataView } from "./StrataView";
@@ -21,6 +22,17 @@ export default function App() {
 
   const scanning = phase === "scanning";
   const otherTheme = theme === "dark" ? "light" : "dark";
+  const orbitTabRef = useRef<HTMLButtonElement>(null);
+  const strataTabRef = useRef<HTMLButtonElement>(null);
+
+  // ARIA tabs pattern: Left/Right switch the view and move focus.
+  const onTabsKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+    e.preventDefault();
+    const next = viewMode === "orbit" ? "strata" : "orbit";
+    setViewMode(next);
+    (next === "orbit" ? orbitTabRef : strataTabRef).current?.focus();
+  };
 
   return (
     <div id="app-shell">
@@ -31,6 +43,7 @@ export default function App() {
           value={folder}
           onChange={(e) => setFolder(e.target.value)}
           disabled={scanning}
+          aria-label="Folder to scan"
         />
         {scanning ? (
           <button className="btn cancel" onClick={() => void cancelScan()}>
@@ -71,7 +84,7 @@ export default function App() {
       <Snapshots />
 
       {loadedSnapshot && (
-        <div className="snapshot-banner">
+        <div className="snapshot-banner" role="status" aria-live="polite">
           Snapshot mode · {loadedSnapshot.name} · {loadedSnapshot.rootName} · saved{" "}
           {new Date(loadedSnapshot.createdUnix * 1000).toLocaleString()} — rescan the folder to
           return to live data.
@@ -79,39 +92,67 @@ export default function App() {
       )}
 
       {progress && (
-        <div className="progress-line">
+        <div className="progress-line" role="status" aria-live="polite">
           scanning… {progress.files.toLocaleString()} files, {progress.dirs.toLocaleString()} folders
           {progress.denied > 0 ? `, ${progress.denied.toLocaleString()} denied` : ""}
           {" · "}
           {(progress.elapsedMs / 1000).toFixed(1)}s
         </div>
       )}
-      {error && <div className="error-line">error: {error}</div>}
-      {exportNotice && <div className="hub-notice export-notice">{exportNotice}</div>}
+      {error && (
+        <div className="error-line" role="alert">
+          error: {error}
+        </div>
+      )}
+      {exportNotice && (
+        <div className="hub-notice export-notice" role="status" aria-live="polite">
+          {exportNotice}
+        </div>
+      )}
 
       {view && (
         <>
-          <nav className="breadcrumb">
+          <nav className="breadcrumb" aria-label="Folder path">
             {view.ancestors.map((a) => (
-              <span key={a.id} className="crumb" onClick={() => void openNode(a.id)}>
+              <button
+                key={a.id}
+                type="button"
+                className="crumb"
+                onClick={() => void openNode(a.id)}
+              >
                 {a.name}
-              </span>
+              </button>
             ))}
-            <span className="crumb current">{tailName ?? "root"}</span>
+            <span className="crumb current" aria-current="page">
+              {tailName ?? "root"}
+            </span>
           </nav>
           <Legend />
-          <div className="view-switch" role="tablist" aria-label="Visual model">
+          <div
+            className="view-switch"
+            role="tablist"
+            aria-label="Visual model"
+            onKeyDown={onTabsKeyDown}
+          >
             <button
+              ref={orbitTabRef}
+              id="tab-orbit"
               role="tab"
               aria-selected={viewMode === "orbit"}
+              aria-controls="visual-view"
+              tabIndex={viewMode === "orbit" ? 0 : -1}
               className={viewMode === "orbit" ? "view-tab active" : "view-tab"}
               onClick={() => setViewMode("orbit")}
             >
               Orbit
             </button>
             <button
+              ref={strataTabRef}
+              id="tab-strata"
               role="tab"
               aria-selected={viewMode === "strata"}
+              aria-controls="visual-view"
+              tabIndex={viewMode === "strata" ? 0 : -1}
               className={viewMode === "strata" ? "view-tab active" : "view-tab"}
               onClick={() => setViewMode("strata")}
             >
@@ -119,7 +160,7 @@ export default function App() {
             </button>
           </div>
           {viewMode === "orbit" ? <OrbitView /> : <StrataView />}
-          <div className="stats-line">
+          <div className="stats-line" role="status" aria-live="polite">
             {view.totalChildren.toLocaleString()} items in this folder
             {rootId === null ? " (no scan yet)" : ""}
           </div>

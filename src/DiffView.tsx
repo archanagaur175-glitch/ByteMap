@@ -45,7 +45,9 @@ export function DiffView() {
     return (
       <div className="diff-view">
         {header}
-        <div className="snapshot-empty">Comparing snapshots…</div>
+        <div className="snapshot-empty" role="status" aria-live="polite">
+          Comparing snapshots…
+        </div>
       </div>
     );
   }

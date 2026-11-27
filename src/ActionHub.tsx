@@ -3,7 +3,7 @@
 // an add affordance, and permanent delete requires the user to type
 // exactly "PERMANENT" (Rust re-checks the string).
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { formatBytes } from "./parseView";
 import { CATEGORY_COLORS } from "./colors";
 import { useStore, type BasketEntry, type DryRunEntry } from "./store";
@@ -59,7 +59,40 @@ export function ActionHub() {
 
   const [confirmText, setConfirmText] = useState("");
   const [showPermanent, setShowPermanent] = useState(false);
+  const permanentBtnRef = useRef<HTMLButtonElement>(null);
+  const modalRef = useRef<HTMLDivElement>(null);
   const confirmed = confirmText === PERMANENT_CONFIRMATION;
+
+  const closePermanent = () => {
+    setShowPermanent(false);
+    setConfirmText("");
+    // Return focus to the control that opened the dialog.
+    requestAnimationFrame(() => permanentBtnRef.current?.focus());
+  };
+
+  // Dialog keyboard contract: Esc closes, Tab is trapped inside, and the
+  // focusable set excludes the disabled "Delete forever" button.
+  const onModalKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === "Escape") {
+      e.stopPropagation();
+      closePermanent();
+      return;
+    }
+    if (e.key !== "Tab") return;
+    const focusables = modalRef.current?.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), input, select, textarea, a[href], [tabindex]:not([tabindex="-1"])',
+    );
+    if (!focusables || focusables.length === 0) return;
+    const first = focusables[0];
+    const last = focusables[focusables.length - 1];
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  };
 
   const addVisible = () => {
     // Bulk add of the current view's real items happens via the row buttons
@@ -76,7 +109,9 @@ export function ActionHub() {
     <section className="action-hub" aria-label="Action Hub">
       <div className="hub-head">
         <span className="hub-title">Action Hub</span>
-        <span className="hub-count">{basket.length} staged</span>
+        <span className="hub-count" role="status" aria-live="polite">
+          {basket.length} staged
+        </span>
         <button className="btn tiny" onClick={() => void addVisible()} disabled={basket.length > 0 && basket.length > 500}>
           Add addable items in view
         </button>
@@ -85,7 +120,11 @@ export function ActionHub() {
         </button>
       </div>
 
-      {basketNotice && <div className="hub-notice">{basketNotice}</div>}
+      {basketNotice && (
+        <div className="hub-notice" role="status" aria-live="polite">
+          {basketNotice}
+        </div>
+      )}
 
       {basket.length > 0 && (
         <div className="basket-list">
@@ -114,6 +153,7 @@ export function ActionHub() {
           Archive
         </button>
         <button
+          ref={permanentBtnRef}
           className="btn danger"
           disabled={basket.length === 0}
           onClick={() => {
@@ -129,8 +169,8 @@ export function ActionHub() {
       </div>
 
       {dryRun && (
-        <div className="dryrun-report">
-          <div className="dryrun-head">
+        <div className="dryrun-report" role="region" aria-label="Dry run report">
+          <div className="dryrun-head" role="status" aria-live="polite">
             Dry run — {dryRun.filter((e) => e.status === "ok").length} ok,{" "}
             {dryRun.filter((e) => e.status !== "ok").length} will be dropped
           </div>
@@ -141,7 +181,7 @@ export function ActionHub() {
       )}
 
       {lastReport && (
-        <div className="hub-report">
+        <div className="hub-report" role="status" aria-live="polite">
           {lastReport.executed.length > 0 && (
             <div className="hub-report-line ok">
               {lastReport.executed.length} item{lastReport.executed.length === 1 ? "" : "s"} processed
@@ -162,7 +202,7 @@ export function ActionHub() {
       )}
 
       {lastUndo && (
-        <div className="hub-report">
+        <div className="hub-report" role="status" aria-live="polite">
           {lastUndo.undoable ? (
             <div className="hub-report-line ok">
               Undo ({lastUndo.action}): {lastUndo.restored?.length ?? 0} restored
@@ -180,10 +220,21 @@ export function ActionHub() {
       )}
 
       {showPermanent && (
-        <div className="modal-backdrop" onClick={() => setShowPermanent(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
-            <h3>Permanently delete {basket.length} item{basket.length === 1 ? "" : "s"}?</h3>
-            <p className="modal-warn">
+        <div className="modal-backdrop" onClick={closePermanent}>
+          <div
+            className="modal"
+            ref={modalRef}
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={onModalKeyDown}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="permanent-title"
+            aria-describedby="permanent-desc"
+          >
+            <h3 id="permanent-title">
+              Permanently delete {basket.length} item{basket.length === 1 ? "" : "s"}?
+            </h3>
+            <p className="modal-warn" id="permanent-desc">
               This cannot be undone. Protected items are refused automatically.
             </p>
             <p>
@@ -197,15 +248,16 @@ export function ActionHub() {
               aria-label="type PERMANENT to confirm"
             />
             <div className="modal-actions">
-              <button className="btn" onClick={() => setShowPermanent(false)}>
+              <button className="btn" onClick={closePermanent}>
                 Cancel
               </button>
               <button
                 className="btn danger"
                 disabled={!confirmed}
                 onClick={() => {
-                  setShowPermanent(false);
-                  void executeAction("permanent", confirmText);
+                  const text = confirmText;
+                  closePermanent();
+                  void executeAction("permanent", text);
                 }}
               >
                 Delete forever

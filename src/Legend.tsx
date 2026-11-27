@@ -21,6 +21,7 @@ export function Legend() {
               key={id}
               className={"legend-chip" + (hidden ? " hidden" : "")}
               onClick={() => toggleCat(id)}
+              aria-pressed={!hidden}
               title={hidden ? "click to show" : "click to filter out"}
             >
               <span
@@ -41,6 +42,7 @@ export function Legend() {
               key={id}
               className={"legend-chip tier" + (hidden ? " hidden" : "")}
               onClick={() => toggleTier(id)}
+              aria-pressed={!hidden}
               title={hidden ? "click to show" : "click to filter out"}
             >
               <span

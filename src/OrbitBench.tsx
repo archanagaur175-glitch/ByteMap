@@ -39,7 +39,7 @@ export function OrbitBench() {
 
   return (
     <div id="app-shell">
-      <div className="bench-hud">
+      <div className="bench-hud" role="status" aria-live="polite">
         {result === null ? (
           <>
             ORBIT-BENCH · {ARC_COUNT} arcs · measuring {BENCH_SECONDS}s · live fps:{" "}
@@ -55,7 +55,12 @@ export function OrbitBench() {
           </>
         )}
       </div>
-      <canvas ref={canvasRef} className="orbit-canvas" />
+      <canvas
+        ref={canvasRef}
+        className="orbit-canvas"
+        role="img"
+        aria-label="Synthetic orbit performance benchmark"
+      />
     </div>
   );
 }

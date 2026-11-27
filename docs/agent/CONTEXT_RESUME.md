@@ -101,8 +101,19 @@ UI: compare selects in the Snapshots panel + DiffView (added/removed/grew/shrank
 50 core tests (11 new), 14 bytemap lib (1 new wiring test), vitest 40 (7 new), clippy workspace clean,
 cargo check workspace clean, scripts/check.ps1 ALL CHECKS PASSED. Also fixed a pre-existing flake: the
 mft_tree unit tests shared one PID-named temp folder while running in parallel (now per-test counter).
-PHASE 9 IN PROGRESS (approved 2026-11-26). NEXT: P9.T4 accessibility/perf audit, then T5 clean install/uninstall on a fresh
-Win11 VM. Q6 (elevated USN proof) and Q4 (MFT whole-volume speed gate) are STILL OUTSTANDING and must not be claimed met.
+PHASE 9 IN PROGRESS (approved 2026-11-26). NEXT: P9.T5 clean install/uninstall on a fresh Win11 VM. Q6 (elevated USN proof) and
+Q4 (MFT whole-volume speed gate) are STILL OUTSTANDING and must not be claimed met. P9.T4 DONE (2026-11-27): a11y/perf audit.
+Keyboard/AT: labelled folder input, real breadcrumb buttons, ARIA tabs with ArrowLeft/Right + tabpanel, TreeList is a virtualized
+role=grid with roving tabIndex and ArrowUp/Down/Home/End/Enter/Space (folded rows not focusable), canvases are role=img and point
+at the list for keyboard access, permanent-delete dialog has aria-labelledby/describedby + Esc + Tab trap + focus restore, Legend
+chips expose aria-pressed, and progress/snapshot/export/status are live regions with role=alert on errors. One :focus-visible ring
+covers every interactive class. Contrast: brief-fixed tokens untouched; light text tokens darkened (muted #5c6579, ok #157a4f,
+warn #8a6200, danger #b02a2a) and a new --link (#255bc0 light / #6ea8ff dark) for breadcrumbs. New src/a11y.test.ts asserts 7:1
+body text, 4.5:1 muted/link/status text, 4.5:1 on-accent, 3:1 tier graphics, and the wiring above. Measured ratios: dark text/bg
+16.18, muted/bg 6.11, link/bg 7.93; light text/bg 16.26, muted/bg 5.36, link/bg 5.77, accent/panel 4.70, tiers/panel 3.42/3.01/4.77
+(tier-1 is the tightest; tiers always carry a text label). scripts/check.ps1 ALL CHECKS PASSED; vitest 63 (17 new) in 340 ms;
+build JS 267.59 kB (82.68 gzip) + CSS 12.85 kB (3.05 gzip), i.e. +3.59 kB JS / +0.33 kB CSS over T2. NOT re-measured: WebView2
+startup/memory/frame timing; the P3 orbit gate (4000 arcs, 7.78 ms avg / 13.90 p95 / 128.6 fps) remains the last canvas number.
 P9.T3 DONE (2026-11-26, owner decision): v0.1.0 ships UNSIGNED. No certificate, no signCommand, no new dep. Verified with
 Get-AuthenticodeSignature: installer / bytemap.exe / bytemap-helper.exe all NotSigned (signer none); the zip reports UnknownError
 because zips have no Authenticode container. State honestly: SmartScreen "unknown publisher", helper still UACs. Revisit before a
