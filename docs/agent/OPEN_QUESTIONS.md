@@ -30,13 +30,14 @@
   install exit 0, no UAC; files + HKCU key + shortcuts correct; app launched as `ByteMap` and closed cleanly; silent uninstall
   removed key/files/shortcuts; a dummy snapshot survived uninstall; no leftover processes. The fresh-VM run is explicitly
   WAIVED, not met — do not describe a fresh-VM gate as passed. P9.T5 and Phase 9 are closed on this basis.
-- Q8 OPEN (2026-11-28): the NSIS installer's `currentUser` install dir is `%LOCALAPPDATA%\ByteMap`, which is the SAME
-  folder the app uses for snapshots/exports (`%LOCALAPPDATA%\ByteMap\snapshots`, `...\exports`). Verified behavior:
-  uninstall deletes only the three known binaries and does a non-recursive `RMDir`, so a user with saved data keeps
-  the folder and data (good) but the install dir is not fully removed; the uninstaller's optional "delete app data"
-  checkbox targets `$LOCALAPPDATA\${BUNDLEID}` / `$APPDATA\${BUNDLEID}` (identifier
-  `io.github.archanagaur175-glitch.bytemap`), NOT `%LOCALAPPDATA%\ByteMap`, so it never deletes ByteMap snapshots/exports.
-  Options: (a) keep the current layout and document it (data is safe, cleanup is partial); (b) move the install dir to
-  `%LOCALAPPDATA%\Programs\ByteMap` via a Tauri NSIS template/hook so binaries and data are separate; (c) move the app
-  data to a clearly separate folder (Rust change) and keep the install dir; (d) change the uninstaller's checkbox to
-  target ByteMap data (custom NSIS hook) — destructive, needs explicit owner approval and tests. Pick one before release.
+- Q8 CLOSED (2026-11-28, option B): the install dir is now separate from the app data dir. Owner chose B, then approved
+  the implementation. `src-tauri/nsis/installer.nsi` is a copy of the Tauri CLI v2.12.4 template (pinned raw file, SHA256
+  `8AE02C66F8ADB4A0D15D97F984FBACD2B44262D8A4D03FEFAF6177F67F7008E5`) with a header note and ONE functional change:
+  `StrCpy $INSTDIR "$LOCALAPPDATA\Programs\${PRODUCTNAME}"` instead of `$LOCALAPPDATA\${PRODUCTNAME}`; wired via
+  `bundle.windows.nsis.template` = `nsis/installer.nsi`. Verified: install -> `%LOCALAPPDATA%\Programs\ByteMap`
+  (exes + uninstall.exe), HKCU `InstallLocation` and both shortcuts point there, app launches as `ByteMap`; reinstall
+  reuses the same folder; uninstall removes the whole program folder, HKCU key and shortcuts while `%LOCALAPPDATA%\ByteMap`
+  snapshots/exports survive. New installer 2,528,779 bytes SHA256 `00CB36997B4624452363F8A4E8752D0D385C51FFB55373D6B71FFF5CB3FF859E`.
+  Known leftovers (documented, not fixed): the uninstaller's "delete app data" checkbox still targets the bundle-id folder,
+  not `%LOCALAPPDATA%\ByteMap`; `HKCU\Software\ByteMap\ByteMap` (previous install location) is only removed when that
+  checkbox is ticked. The template must be re-synced on any Tauri CLI upgrade. See DECISIONS.md.

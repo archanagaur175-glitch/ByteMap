@@ -102,16 +102,23 @@ UI: compare selects in the Snapshots panel + DiffView (added/removed/grew/shrank
 cargo check workspace clean, scripts/check.ps1 ALL CHECKS PASSED. Also fixed a pre-existing flake: the
 mft_tree unit tests shared one PID-named temp folder while running in parallel (now per-test counter).
 PHASE 9 CLOSED (2026-11-28). P9.T5 was accepted on current-machine evidence; the fresh-Win11-VM run was explicitly
-waived (Q7 CLOSED). Q6 (elevated USN proof) and Q4 (MFT whole-volume speed gate) are STILL OUTSTANDING and must not be
-claimed met. Before any public release, decide Q8 (install dir == data dir). P9.T5 DONE (2026-11-28, owner chose a
-current-machine test instead of a VM): rebuilt installer 2,528,781 bytes SHA256 8AF484BE...B9A0; silent
+waived (Q7 CLOSED). Q8.B DONE (2026-11-28, owner chose B and approved it): the installer now targets
+%LOCALAPPDATA%\Programs\ByteMap while snapshots/exports stay in %LOCALAPPDATA%\ByteMap. src-tauri/nsis/installer.nsi is the
+Tauri CLI v2.12.4 template with ONE change (currentUser dir -> $LOCALAPPDATA\Programs\${PRODUCTNAME}), wired via
+bundle.windows.nsis.template. Verified on this machine: silent install -> Programs\ByteMap (exes + uninstall.exe), HKCU
+InstallLocation + both shortcuts point there, app launches as ByteMap; reinstall reuses the folder; uninstall removes the
+whole program folder + key + shortcuts while dummy snapshots/exports in %LOCALAPPDATA%\ByteMap SURVIVE. Installer
+2,528,779 bytes SHA256 00CB3699...859E. Q6 (elevated USN proof) and Q4 (MFT whole-volume speed gate) are STILL OUTSTANDING
+and must not be claimed met. P9.T5 DONE (2026-11-28, owner chose a current-machine test instead of a VM): rebuilt installer
+2,528,781 bytes SHA256 8AF484BE...B9A0 (superseded by Q8.B); silent
 install exit 0 (no UAC), installed %LOCALAPPDATA%\ByteMap with bytemap.exe + helper + uninstall.exe, HKCU key, Desktop +
 Start Menu shortcuts; all NotSigned; installed app has the T4 asset key; helper still requireAdministrator; app launched
 title=ByteMap and closed cleanly. Silent uninstall exit 0: key/dir/shortcuts gone, no processes. Second cycle with a dummy
-snapshot proved user data SURVIVES uninstall (non-recursive RMDir cannot remove the non-empty folder); dummy removed. Install
-dir == data dir (%LOCALAPPDATA%\ByteMap); the uninstaller's "delete app data" checkbox targets the bundle-id folder, not
+snapshot proved user data SURVIVES uninstall (non-recursive RMDir cannot remove the non-empty folder); dummy removed. At
+P9.T5 time install dir == data dir (%LOCALAPPDATA%\ByteMap); the uninstaller's "delete app data" checkbox targets the
+bundle-id folder, not
 ByteMap data, and silent uninstall leaves the WebView2 EBWebView profile. Portable zip rebuilt 3,507,548 bytes SHA256
-0B7E46BF...4F85, 5 files, verified. Q8 remains open. P9.T4 DONE (2026-11-27): a11y/perf audit.
+0B7E46BF...4F85, 5 files, verified. P9.T4 DONE (2026-11-27): a11y/perf audit.
 Keyboard/AT: labelled folder input, real breadcrumb buttons, ARIA tabs with ArrowLeft/Right + tabpanel, TreeList is a virtualized
 role=grid with roving tabIndex and ArrowUp/Down/Home/End/Enter/Space (folded rows not focusable), canvases are role=img and point
 at the list for keyboard access, permanent-delete dialog has aria-labelledby/describedby + Esc + Tab trap + focus restore, Legend

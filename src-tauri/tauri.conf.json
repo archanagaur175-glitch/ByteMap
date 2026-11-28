@@ -43,6 +43,7 @@
         "silent": true
       },
       "nsis": {
+        "template": "nsis/installer.nsi",
         "installMode": "currentUser",
         "languages": ["English"],
         "displayLanguageSelector": false,
