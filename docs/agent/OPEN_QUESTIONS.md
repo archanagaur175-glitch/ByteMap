@@ -25,13 +25,11 @@
      "a folder was renamed or moved since this snapshot; run a full scan" and leave the file untouched.
   Paste the notice / error string; that closes Q6. Until then no summary may claim refresh "works on a real
   volume" — only "proven by tests, pending an elevated run".
-- Q7 OPEN (2026-11-28): P9.T5's written gate is a **clean install/uninstall on a fresh Win11 VM**, but the owner chose
-  "test on this machine" instead. The current-machine cycle PASSED (silent install exit 0, no UAC; registry + files +
-  shortcuts correct; app launched; silent uninstall removed key/files/shortcuts; user data survived a dummy-file test;
-  no leftover processes). This is real evidence, but it is NOT a fresh-VM result: the machine already had WebView2, the
-  installer had run before, and no reboot/clean-profile check happened. Owner decision needed: (a) accept the
-  current-machine evidence and mark P9.T5 complete, or (b) still run the installer on a fresh Win11 VM before closing
-  Phase 9. Until the owner answers, P9.T5 stays PARTIAL and Phase 9 stays open. Do not describe the fresh-VM gate as met.
+- Q7 CLOSED (2026-11-28): P9.T5's written gate asked for a fresh Win11 VM, but the owner chose a current-machine test and
+  then accepted that evidence ("accept this current-machine evidence and close P9.T5/Phase 9"). The cycle PASSED: silent
+  install exit 0, no UAC; files + HKCU key + shortcuts correct; app launched as `ByteMap` and closed cleanly; silent uninstall
+  removed key/files/shortcuts; a dummy snapshot survived uninstall; no leftover processes. The fresh-VM run is explicitly
+  WAIVED, not met — do not describe a fresh-VM gate as passed. P9.T5 and Phase 9 are closed on this basis.
 - Q8 OPEN (2026-11-28): the NSIS installer's `currentUser` install dir is `%LOCALAPPDATA%\ByteMap`, which is the SAME
   folder the app uses for snapshots/exports (`%LOCALAPPDATA%\ByteMap\snapshots`, `...\exports`). Verified behavior:
   uninstall deletes only the three known binaries and does a non-recursive `RMDir`, so a user with saved data keeps
