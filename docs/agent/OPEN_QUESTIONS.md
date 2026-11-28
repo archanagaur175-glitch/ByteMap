@@ -25,3 +25,20 @@
      "a folder was renamed or moved since this snapshot; run a full scan" and leave the file untouched.
   Paste the notice / error string; that closes Q6. Until then no summary may claim refresh "works on a real
   volume" — only "proven by tests, pending an elevated run".
+- Q7 OPEN (2026-11-28): P9.T5's written gate is a **clean install/uninstall on a fresh Win11 VM**, but the owner chose
+  "test on this machine" instead. The current-machine cycle PASSED (silent install exit 0, no UAC; registry + files +
+  shortcuts correct; app launched; silent uninstall removed key/files/shortcuts; user data survived a dummy-file test;
+  no leftover processes). This is real evidence, but it is NOT a fresh-VM result: the machine already had WebView2, the
+  installer had run before, and no reboot/clean-profile check happened. Owner decision needed: (a) accept the
+  current-machine evidence and mark P9.T5 complete, or (b) still run the installer on a fresh Win11 VM before closing
+  Phase 9. Until the owner answers, P9.T5 stays PARTIAL and Phase 9 stays open. Do not describe the fresh-VM gate as met.
+- Q8 OPEN (2026-11-28): the NSIS installer's `currentUser` install dir is `%LOCALAPPDATA%\ByteMap`, which is the SAME
+  folder the app uses for snapshots/exports (`%LOCALAPPDATA%\ByteMap\snapshots`, `...\exports`). Verified behavior:
+  uninstall deletes only the three known binaries and does a non-recursive `RMDir`, so a user with saved data keeps
+  the folder and data (good) but the install dir is not fully removed; the uninstaller's optional "delete app data"
+  checkbox targets `$LOCALAPPDATA\${BUNDLEID}` / `$APPDATA\${BUNDLEID}` (identifier
+  `io.github.archanagaur175-glitch.bytemap`), NOT `%LOCALAPPDATA%\ByteMap`, so it never deletes ByteMap snapshots/exports.
+  Options: (a) keep the current layout and document it (data is safe, cleanup is partial); (b) move the install dir to
+  `%LOCALAPPDATA%\Programs\ByteMap` via a Tauri NSIS template/hook so binaries and data are separate; (c) move the app
+  data to a clearly separate folder (Rust change) and keep the install dir; (d) change the uninstaller's checkbox to
+  target ByteMap data (custom NSIS hook) — destructive, needs explicit owner approval and tests. Pick one before release.
